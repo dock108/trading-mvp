@@ -95,8 +95,8 @@ class TradingOrchestrator:
         """Execute trading simulation across all strategies.
         
         Args:
-            weeks: Number of weeks to simulate
-            start_week: Starting week number
+            weeks: Number of weeks to simulate (passed to strategies)
+            start_week: Starting week number (not used by current strategies)
             
         Returns:
             List of all trades executed across strategies
@@ -104,7 +104,7 @@ class TradingOrchestrator:
         Raises:
             OrchestrationError: If simulation fails
         """
-        logger.info(f"Starting {weeks}-week simulation")
+        logger.info(f"Starting simulation with {len(self.strategies)} strategies")
         
         try:
             # Generate run ID for database tracking
@@ -116,13 +116,30 @@ class TradingOrchestrator:
             
             all_trades = []
             
-            # Execute each week
-            for week in range(start_week, start_week + weeks):
-                week_trades = self._execute_week(week)
-                all_trades.extend(week_trades)
-                
-                if week % 10 == 0:
-                    logger.info(f"Completed week {week}, total trades: {len(all_trades)}")
+            # Execute each strategy
+            for strategy_name, strategy in self.strategies.items():
+                try:
+                    logger.info(f"Executing {strategy_name} strategy...")
+                    
+                    # Call strategy's run method (strategies manage their own simulation loop)
+                    strategy_trades = strategy.run(backtest=True)
+                    
+                    # Add strategy name to each trade
+                    for trade in strategy_trades:
+                        trade['strategy'] = strategy_name
+                        
+                        # Log to database
+                        try:
+                            log_trade_to_db(trade)
+                        except Exception as e:
+                            logger.warning(f"Failed to log trade to database: {e}")
+                    
+                    all_trades.extend(strategy_trades)
+                    logger.info(f"{strategy_name} completed: {len(strategy_trades)} trades")
+                    
+                except Exception as e:
+                    logger.error(f"Strategy {strategy_name} failed: {e}")
+                    continue
             
             # Sort trades chronologically for output
             all_trades.sort(key=lambda t: (t.get('week', ''), t.get('timestamp', '')))

@@ -212,7 +212,7 @@ const RecommendationsPanel: React.FC = () => {
 
           <div className="space-y-3">
             <h4 className="font-medium text-gray-900">Current Positions</h4>
-            {portfolio.positions.map((position, index) => (
+            {portfolio.positions?.map((position, index) => (
               <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                 <div>
                   <div className="font-medium text-gray-900">{position.symbol}</div>
@@ -241,7 +241,7 @@ const RecommendationsPanel: React.FC = () => {
           </h3>
           
           <div className="space-y-3">
-            {alerts.alerts.map((alert, index) => (
+            {alerts.alerts?.map((alert, index) => (
               <div key={index} className={`p-3 border rounded-lg ${getSeverityColor(alert.severity)}`}>
                 <div className="flex justify-between items-start">
                   <div>
@@ -256,14 +256,14 @@ const RecommendationsPanel: React.FC = () => {
             ))}
           </div>
 
-          {alerts.upcoming_events.length > 0 && (
+          {alerts.upcoming_events?.length > 0 && (
             <div className="mt-4">
               <h4 className="font-medium text-gray-900 mb-2 flex items-center space-x-2">
                 <Calendar className="h-4 w-4" />
                 <span>Upcoming Events</span>
               </h4>
               <ul className="space-y-1">
-                {alerts.upcoming_events.map((event, index) => (
+                {alerts.upcoming_events?.map((event, index) => (
                   <li key={index} className="text-sm text-gray-600 flex items-center space-x-2">
                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <span>{event}</span>
