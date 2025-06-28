@@ -8,6 +8,7 @@ pandas>=2.0.0
 # Market Data APIs - Phase 2
 yfinance>=0.2.18          # Yahoo Finance data (free, primary ETF source)
 requests>=2.31.0          # HTTP requests for APIs
+httpx>=0.24.0             # Async HTTP client for Sprint 4
 
 # Environment & Configuration Management
 python-dotenv>=1.0.0      # Load environment variables from .env files
