@@ -1,0 +1,6 @@
+initial_capital: 50000
+strategies:
+  wheel: false
+allocation:
+  wheel: 0.3
+  rotator: 0.7

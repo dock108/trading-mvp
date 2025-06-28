@@ -1,0 +1,12 @@
+initial_capital: 100000    # starting capital in USD
+
+strategies:
+  wheel: true             # enable Options Wheel strategy
+  rotator: true           # enable Crypto Rotator strategy
+
+allocation:
+  wheel: 0.5              # 50% capital to wheel (if both enabled)
+  rotator: 0.5            # 50% capital to rotator
+
+wheel_symbols: ["SPY", "QQQ", "IWM"]   # underlying tickers for wheel
+rotator_symbols: ["BTC", "ETH", "SOL"] # assets for rotator
