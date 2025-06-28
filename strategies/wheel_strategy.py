@@ -3,6 +3,12 @@ Options Wheel Strategy implementation.
 
 This module simulates an options wheel strategy on stock ETFs (SPY, QQQ, IWM).
 The wheel strategy involves selling cash-secured puts and covered calls.
+
+Features:
+- Live market data integration via PriceFetcher
+- Fallback to mock data for testing
+- Production-ready error handling
+- Comprehensive trade logging
 """
 
 import csv
@@ -10,6 +16,11 @@ import pandas as pd
 from datetime import datetime
 from enum import Enum
 import random
+import logging
+from typing import List, Dict, Optional
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class WheelState(Enum):
     """Wheel strategy states for each symbol."""
@@ -18,21 +29,23 @@ class WheelState(Enum):
     COVERED_CALL = "cc"
 
 class WheelStrategy:
-    """Options Wheel Strategy for stock ETFs."""
+    """Options Wheel Strategy for stock ETFs with live data support."""
     
-    def __init__(self, capital, symbols, config=None):
+    def __init__(self, capital, symbols, config=None, price_fetcher=None):
         """Initialize the wheel strategy.
         
         Args:
             capital (float): Capital allocated to this strategy
             symbols (list): List of ETF symbols (e.g., ['SPY', 'QQQ', 'IWM'])
             config (dict): Additional configuration parameters
+            price_fetcher: PriceFetcher instance for live data (optional)
         """
         self.initial_capital = capital
         self.capital = capital
         self.available_capital = capital
         self.symbols = symbols
         self.config = config or {}
+        self.price_fetcher = price_fetcher
         self.trades = []
         
         # P&L tracking
@@ -40,8 +53,12 @@ class WheelStrategy:
         self.realized_gains = 0.0
         self.unrealized_pnl = 0.0
         
-        # Mock price data for 8 weeks of simulation
-        self.prices = self._generate_mock_prices()
+        # Data mode configuration
+        self.data_mode = self.config.get('data_mode', 'mock')
+        self.simulation_weeks = self.config.get('simulation', {}).get('weeks_to_simulate', 8)
+        
+        # Price data (will be populated by _initialize_price_data)
+        self.prices = {}
         self.current_week = 0
         
         # Position tracking for each symbol
@@ -55,60 +72,116 @@ class WheelStrategy:
                 'current_strike': None,
                 'expiration_date': None
             }
-    
-    def _generate_mock_prices(self):
-        """Generate mock price data for 8 weeks of simulation.
         
-        Returns:
-            dict: Weekly prices for each symbol
-        """
-        # Starting prices based on realistic ETF values
+        # Initialize price data
+        self._initialize_price_data()
+    
+    def _initialize_price_data(self):
+        """Initialize price data based on data mode configuration."""
+        if self.data_mode == 'live' and self.price_fetcher:
+            try:
+                logger.info(f"Fetching live market data for {len(self.symbols)} ETF symbols")
+                self.prices = self._fetch_live_prices()
+                logger.info(f"Successfully loaded live price data for {len(self.prices)} symbols")
+            except Exception as e:
+                logger.warning(f"Failed to fetch live data, falling back to mock data: {e}")
+                self.prices = self._generate_mock_prices()
+        else:
+            if self.data_mode == 'live':
+                logger.warning("Live mode requested but no price_fetcher provided, using mock data")
+            self.prices = self._generate_mock_prices()
+    
+    def _fetch_live_prices(self) -> Dict[str, List[float]]:
+        """Fetch live market data for all symbols."""
+        if not self.price_fetcher:
+            raise ValueError("PriceFetcher not available for live data")
+        
+        prices = {}
+        days_to_fetch = max(self.simulation_weeks, 7)  # Ensure we have enough data
+        
+        for symbol in self.symbols:
+            try:
+                symbol_prices = self.price_fetcher.get_prices(symbol, 'etf', days_to_fetch)
+                
+                if len(symbol_prices) < self.simulation_weeks:
+                    logger.warning(f"Insufficient data for {symbol}: got {len(symbol_prices)}, need {self.simulation_weeks}")
+                    # Pad with last known price if needed
+                    while len(symbol_prices) < self.simulation_weeks:
+                        symbol_prices.append(symbol_prices[-1])
+                
+                prices[symbol] = symbol_prices[:self.simulation_weeks]
+                logger.info(f"Loaded {len(prices[symbol])} price points for {symbol}")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch prices for {symbol}: {e}")
+                # Use fallback mock data for this symbol
+                prices[symbol] = self._generate_mock_prices_for_symbol(symbol)
+        
+        return prices
+    
+    def _generate_mock_prices_for_symbol(self, symbol: str) -> List[float]:
+        """Generate mock prices for a single symbol."""
         base_prices = {
             "SPY": 450,
             "QQQ": 370, 
             "IWM": 210
         }
         
+        base_price = base_prices.get(symbol, 400)
+        
+        if self.config.get('test_mode', False) or self.config.get('simulation', {}).get('enable_deterministic_mode', False):
+            # Deterministic price sequence for testing
+            return [
+                base_price,          # Week 0: base
+                base_price * 0.92,   # Week 1: drop for put assignment
+                base_price * 0.94,   # Week 2: recovery
+                base_price * 0.96,   # Week 3: continued recovery
+                base_price * 1.08,   # Week 4: jump for call exercise
+                base_price * 1.02,   # Week 5: settle higher
+                base_price * 0.98,   # Week 6: slight drop
+                base_price * 1.01,   # Week 7: recovery
+            ][:self.simulation_weeks]
+        else:
+            # Random generation for variety
+            random.seed(42 + hash(symbol))  # Different seed per symbol
+            prices = [base_price]
+            
+            for week in range(self.simulation_weeks - 1):
+                price_change = random.uniform(-0.03, 0.03)
+                new_price = prices[-1] * (1 + price_change)
+                prices.append(round(new_price, 2))
+            
+            return prices
+    
+    def _generate_mock_prices(self) -> Dict[str, List[float]]:
+        """Generate mock price data for simulation.
+        
+        Returns:
+            dict: Weekly prices for each symbol
+        """
         prices = {}
         
-        # Use test mode for deterministic full cycle demonstration
-        if self.config.get('test_mode', False):
-            # Create deterministic price sequence to force full wheel cycle
-            for symbol in self.symbols:
-                base_price = base_prices.get(symbol, 400)
-                # Week 0: Start at base price
-                # Week 1: Drop below put strike to force assignment
-                # Week 2-3: Stay low while holding shares
-                # Week 4: Rise above call strike to force exercise
-                # Week 5-7: Continue varied movements
-                prices[symbol] = [
-                    base_price,          # Week 0: $450
-                    base_price * 0.92,   # Week 1: $414 (below put strike ~$427.50)
-                    base_price * 0.94,   # Week 2: $423 (still holding)
-                    base_price * 0.96,   # Week 3: $432 (still holding)
-                    base_price * 1.08,   # Week 4: $486 (above call strike ~$434.70)
-                    base_price * 1.02,   # Week 5: $459
-                    base_price * 0.98,   # Week 6: $441
-                    base_price * 1.01,   # Week 7: $454.50
-                    base_price * 0.99    # Week 8: $445.50
-                ]
-        else:
-            # Original random generation for production use
-            random.seed(42)  # For reproducible results
-            
-            for symbol in self.symbols:
-                base_price = base_prices.get(symbol, 400)
-                weekly_prices = [base_price]
-                
-                # Generate 8 weeks of price movements (-3% to +3% weekly)
-                for week in range(8):
-                    price_change = random.uniform(-0.03, 0.03)
-                    new_price = weekly_prices[-1] * (1 + price_change)
-                    weekly_prices.append(round(new_price, 2))
-                
-                prices[symbol] = weekly_prices
-            
+        for symbol in self.symbols:
+            prices[symbol] = self._generate_mock_prices_for_symbol(symbol)
+        
+        logger.info(f"Generated mock price data for {len(prices)} symbols")
         return prices
+    
+    def get_data_source_info(self) -> Dict[str, str]:
+        """Get information about the current data source being used."""
+        info = {
+            'data_mode': self.data_mode,
+            'price_fetcher_available': self.price_fetcher is not None,
+            'symbols_loaded': list(self.prices.keys()),
+            'simulation_weeks': self.simulation_weeks
+        }
+        
+        if self.data_mode == 'live' and self.price_fetcher:
+            info['data_source'] = 'Live market data via PriceFetcher'
+        else:
+            info['data_source'] = 'Mock/simulated data'
+        
+        return info
     
     def get_current_price(self, symbol):
         """Get current price for a symbol.

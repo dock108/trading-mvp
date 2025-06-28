@@ -1,0 +1,34 @@
+# Trading MVP Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core dependencies from Phase 1
+pyyaml>=6.0.1
+pandas>=2.0.0
+
+# Market Data APIs - Phase 2
+yfinance>=0.2.18          # Yahoo Finance data (free, primary ETF source)
+requests>=2.31.0          # HTTP requests for APIs
+
+# Environment & Configuration Management
+python-dotenv>=1.0.0      # Load environment variables from .env files
+
+# Rate Limiting & Reliability
+ratelimit>=2.2.1          # Decorator-based rate limiting
+backoff>=2.2.1            # Exponential backoff for retries
+
+# Data Processing & Analysis
+numpy>=1.24.0             # Numerical computing (pandas dependency)
+pytz>=2023.3              # Timezone handling for market data
+
+# Logging & Monitoring
+structlog>=23.1.0         # Structured logging for production
+colorama>=0.4.6           # Colored terminal output
+
+# Optional: Enhanced Data Sources (uncomment if needed)
+# alpha-vantage>=2.3.1    # Alpha Vantage API client
+# finnhub-python>=2.4.18  # Finnhub API client
+
+# Development & Testing Dependencies
+# pytest>=7.4.0          # Testing framework
+# pytest-mock>=3.11.1    # Mocking for tests
+# responses>=0.23.1       # Mock HTTP responses for testing

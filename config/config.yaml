@@ -1,12 +1,82 @@
+# =============================================================================
+# TRADING MVP CONFIGURATION
+# =============================================================================
+
 initial_capital: 100000    # starting capital in USD
 
+# Strategy Configuration
 strategies:
   wheel: true             # enable Options Wheel strategy
   rotator: true           # enable Crypto Rotator strategy
 
+# Capital Allocation (percentages must sum to 1.0)
 allocation:
   wheel: 0.5              # 50% capital to wheel (if both enabled)
   rotator: 0.5            # 50% capital to rotator
 
-wheel_symbols: ["SPY", "QQQ", "IWM"]   # underlying tickers for wheel
-rotator_symbols: ["BTC", "ETH", "SOL"] # assets for rotator
+# =============================================================================
+# DATA SOURCE CONFIGURATION
+# =============================================================================
+
+# Data Mode: "live", "mock", or "hybrid"
+data_mode: "mock"
+
+# Market Data Sources
+data_sources:
+  crypto:
+    primary: "coingecko"         # Primary crypto data source
+    symbols:                     # Mapping of strategy symbols to API identifiers
+      BTC: "bitcoin"
+      ETH: "ethereum"  
+      SOL: "solana"
+    rate_limit_per_minute: 10    # API calls per minute
+    timeout_seconds: 30
+    
+  etf:
+    primary: "yfinance"          # Primary ETF/stock data source
+    secondary: "alpha_vantage"   # Backup source (requires API key)
+    symbols:                     # Direct symbol mapping for ETFs
+      SPY: "SPY"
+      QQQ: "QQQ"
+      IWM: "IWM"
+    rate_limit_per_minute: 5
+    timeout_seconds: 30
+
+# API Fallback Strategy
+fallback_strategy:
+  on_api_failure: "use_cached"   # "use_cached", "use_mock", "fail"
+  cache_expiry_minutes: 60
+  enable_mock_fallback: true     # Use mock data if all APIs fail
+
+# Market Data Settings
+market_data:
+  default_lookback_days: 7       # Default historical data period
+  price_type: "close"            # "close", "adjusted_close", "average"
+  currency: "USD"
+  include_weekend_data: false    # Filter out weekend crypto data
+  timezone: "America/New_York"   # Market timezone
+
+# =============================================================================
+# STRATEGY SYMBOL CONFIGURATION
+# =============================================================================
+
+# Options Wheel Strategy Assets
+wheel_symbols: ["SPY", "QQQ", "IWM"]   # ETF tickers for wheel strategy
+
+# Crypto Rotator Strategy Assets  
+rotator_symbols: ["BTC", "ETH", "SOL"] # Crypto symbols for rotator strategy
+
+# =============================================================================
+# SIMULATION SETTINGS
+# =============================================================================
+
+# Simulation Parameters
+simulation:
+  weeks_to_simulate: 8           # Number of weeks for backtest
+  enable_deterministic_mode: true # Use deterministic test data when data_mode="mock"
+  
+# Risk Management (future enhancement)
+risk_management:
+  max_position_size: 0.5         # Maximum position size as % of total capital
+  enable_stop_losses: false      # Enable stop-loss orders
+  max_daily_trades: 10           # Maximum trades per day
