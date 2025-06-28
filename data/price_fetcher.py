@@ -32,6 +32,13 @@ from ratelimit import limits, sleep_and_retry
 from backoff import on_exception, expo
 import pytz
 
+# Import realistic market data as fallback
+try:
+    from .realistic_market_data import get_realistic_etf_prices, get_realistic_crypto_prices
+except ImportError:
+    # If running this module directly
+    from realistic_market_data import get_realistic_etf_prices, get_realistic_crypto_prices
+
 # Load environment variables
 load_dotenv()
 

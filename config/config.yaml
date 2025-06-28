@@ -19,7 +19,7 @@ allocation:
 # =============================================================================
 
 # Data Mode: "live", "mock", or "hybrid"
-data_mode: "mock"
+data_mode: "live"
 
 # Market Data Sources
 data_sources:
@@ -67,13 +67,32 @@ wheel_symbols: ["SPY", "QQQ", "IWM"]   # ETF tickers for wheel strategy
 rotator_symbols: ["BTC", "ETH", "SOL"] # Crypto symbols for rotator strategy
 
 # =============================================================================
-# SIMULATION SETTINGS
+# BACKTESTING SETTINGS
 # =============================================================================
 
-# Simulation Parameters
-simulation:
-  weeks_to_simulate: 8           # Number of weeks for backtest
+# Backtesting Parameters
+backtesting:
+  # Date Range Configuration
+  start_date: "2024-01-01"       # Start date for historical backtesting (YYYY-MM-DD)
+  end_date: "2024-12-31"         # End date for historical backtesting (YYYY-MM-DD)
+  
+  # Legacy simulation mode (when using mock data)
+  weeks_to_simulate: 8           # Number of weeks for simulation mode
   enable_deterministic_mode: true # Use deterministic test data when data_mode="mock"
+  
+  # Backtesting Configuration
+  rebalance_frequency: "weekly"  # "daily", "weekly", "monthly"
+  initial_capital: 100000        # Starting capital (can override initial_capital)
+  benchmark_symbol: "SPY"        # Benchmark for comparison
+  
+  # Performance Analysis
+  risk_free_rate: 0.045          # Risk-free rate for Sharpe ratio calculation (4.5%)
+  calculate_metrics: true        # Calculate advanced performance metrics
+  
+  # Transaction Costs (for realistic backtesting)
+  commission_per_trade: 0.0      # Commission per trade ($0 for many brokers now)
+  spread_bp: 2                   # Bid-ask spread in basis points (0.02%)
+  slippage_bp: 1                 # Market impact slippage in basis points (0.01%)
   
 # Risk Management (future enhancement)
 risk_management:
