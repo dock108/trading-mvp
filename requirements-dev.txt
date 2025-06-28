@@ -1,0 +1,16 @@
+# Development and testing dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+httpx>=0.24.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+pre-commit>=3.0.0
+
+# For mocking HTTP requests in tests
+responses>=0.23.0
+respx>=0.20.0
+
+# For temporary file handling in tests
+pytest-tmp-path>=1.0.0
