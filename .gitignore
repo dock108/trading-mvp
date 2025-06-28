@@ -135,19 +135,39 @@ trades.csv
 detailed_trades.csv
 consolidated_trades.csv
 
-# API keys and secrets
+# API keys and secrets - ENHANCED SECURITY
+.env
+.env.local
+.env.development
+.env.staging
+.env.production
 secrets.yaml
 secrets.json
 api_keys.txt
 .secrets
 *.key
 *.pem
+.credentials
+credentials.json
+auth.json
+
+# API Response Cache (contains potentially sensitive data)
+data/cache/
+cache/
+*.cache
+api_responses/
 
 # Trading data and logs
 trading_logs/
 backtest_data/
 market_data/
+logs/
 *.log
+
+# Live trading data (production safety)
+live_trades/
+production_data/
+real_money_trades.csv
 
 # Configuration overrides (keep template config)
 config/local_config.yaml

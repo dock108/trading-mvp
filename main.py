@@ -1,14 +1,34 @@
 #!/usr/bin/env python3
 """
-Main CLI script to run trading strategies.
+Main CLI script to run trading strategies with live data support.
+
+Features:
+- Live market data integration via PriceFetcher
+- Environment variable loading for API keys
+- Comprehensive error handling and fallbacks
+- Multiple data source support
 """
 
+import os
 import yaml
 import argparse
 import csv
+import logging
 from datetime import datetime
+from dotenv import load_dotenv
+
 from strategies.wheel_strategy import WheelStrategy
 from strategies.crypto_rotator_strategy import CryptoRotator
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper()),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Configuration constants
 ALLOCATION_TOLERANCE = 0.01  # Allow small floating point errors in allocation percentages
@@ -19,6 +39,82 @@ DEFAULT_CONFIG_PATH = "config/config.yaml"
 STANDARD_TRADES_CSV = "trades.csv"
 DETAILED_TRADES_CSV = "detailed_trades.csv"
 CONSOLIDATED_TRADES_CSV = "consolidated_trades.csv"
+
+def initialize_price_fetcher(config):
+    """Initialize PriceFetcher for live data mode."""
+    data_mode = config.get('data_mode', 'mock')
+    
+    if data_mode != 'live':
+        logger.info(f"Data mode is '{data_mode}', PriceFetcher not needed")
+        return None
+    
+    try:
+        # Import PriceFetcher only when needed to avoid dependency issues in mock mode
+        from data.price_fetcher import PriceFetcher
+        
+        logger.info("Initializing PriceFetcher for live data mode")
+        price_fetcher = PriceFetcher()
+        
+        # Perform health check
+        logger.info("Performing data source health check...")
+        health_status = price_fetcher.health_check()
+        
+        working_sources = sum(1 for status in health_status.values() if status is True)
+        total_sources = len([s for s in health_status.values() if s is not None])
+        
+        if working_sources == 0:
+            logger.error("No data sources are working! Check your API keys and network connection.")
+            logger.info("Available fallback: mock data mode")
+            return None
+        elif working_sources < total_sources:
+            logger.warning(f"Only {working_sources}/{total_sources} data sources are working")
+            logger.info("Some fallback mechanisms may be used")
+        else:
+            logger.info(f"All {working_sources} data sources are healthy")
+        
+        # Log data source status
+        for source, status in health_status.items():
+            if status is True:
+                logger.info(f"  ✅ {source}: Working")
+            elif status is False:
+                logger.warning(f"  ❌ {source}: Failed")
+            else:
+                logger.info(f"  ⚠️ {source}: Not configured")
+        
+        return price_fetcher
+        
+    except ImportError as e:
+        logger.error(f"Failed to import PriceFetcher: {e}")
+        logger.info("Install required dependencies: pip install -r requirements.txt")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to initialize PriceFetcher: {e}")
+        logger.info("Falling back to mock data mode")
+        return None
+
+def validate_data_mode_config(config):
+    """Validate data mode configuration and provide helpful guidance."""
+    data_mode = config.get('data_mode', 'mock')
+    
+    if data_mode == 'live':
+        # Check for required environment variables
+        required_vars = ['COINGECKO_API_KEY']  # CoinGecko is our primary crypto source
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            logger.warning(f"Missing environment variables for live mode: {missing_vars}")
+            logger.info("Live mode will use free API tiers or fall back to mock data")
+            logger.info("For best results, sign up for API keys at:")
+            logger.info("  - CoinGecko: https://coingecko.com/api")
+            logger.info("  - Alpha Vantage: https://alphavantage.co/support/#api-key")
+        
+        # Check .env file exists
+        if not os.path.exists('.env'):
+            logger.warning(".env file not found")
+            logger.info("Create .env file from .env.example template for API key management")
+    
+    logger.info(f"Data mode: {data_mode}")
+    return data_mode
 
 def parse_arguments():
     """Parse command-line arguments with detailed help descriptions."""
@@ -295,11 +391,12 @@ def calculate_capital_allocation(config):
         
         return {'wheel': wheel_capital, 'rotator': rotator_capital}
 
-def initialize_strategies(config):
+def initialize_strategies(config, price_fetcher=None):
     """Initialize enabled strategies with proper capital allocation.
     
     Args:
         config (dict): Configuration dictionary
+        price_fetcher: PriceFetcher instance for live data (optional)
         
     Returns:
         dict: Dictionary of initialized strategy instances
@@ -308,6 +405,15 @@ def initialize_strategies(config):
     
     # Calculate capital allocation
     allocation = calculate_capital_allocation(config)
+    
+    # Show data source information
+    data_mode = config.get('data_mode', 'mock')
+    print(f"\nData Source Configuration:")
+    print(f"  Mode: {data_mode}")
+    if price_fetcher:
+        print(f"  Live data: Available via PriceFetcher")
+    else:
+        print(f"  Live data: Not available (using mock/simulated data)")
     
     # Initialize wheel strategy if enabled
     if config['strategies']['wheel'] and allocation['wheel'] > 0:
@@ -320,8 +426,13 @@ def initialize_strategies(config):
         strategies['wheel'] = WheelStrategy(
             capital=allocation['wheel'],
             symbols=wheel_symbols,
-            config=config
+            config=config,
+            price_fetcher=price_fetcher
         )
+        
+        # Display data source info
+        data_info = strategies['wheel'].get_data_source_info()
+        print(f"  Data Source: {data_info['data_source']}")
     
     # Initialize rotator strategy if enabled
     if config['strategies']['rotator'] and allocation['rotator'] > 0:
@@ -334,8 +445,15 @@ def initialize_strategies(config):
         strategies['rotator'] = CryptoRotator(
             capital=allocation['rotator'],
             coins=rotator_symbols,
-            config=config
+            config=config,
+            price_fetcher=price_fetcher
         )
+        
+        # Display data source info
+        data_info = strategies['rotator'].get_data_source_info()
+        print(f"  Data Source: {data_info['data_source']}")
+        if data_info.get('symbol_mapping'):
+            print(f"  Symbol Mapping: {data_info['symbol_mapping']}")
     
     return strategies
 
@@ -746,11 +864,11 @@ def print_simulation_summary(config, args, all_trades):
     print(f"  python summary_report.py")
 
 def main():
-    """Main entry point for the trading MVP."""
+    """Main entry point for the trading MVP with live data support."""
     # Parse command-line arguments
     args = parse_arguments()
     
-    print("Trading MVP - Weekend Sprint")
+    print("Trading MVP - Weekend Sprint 2: Live Data Integration")
     print(f"Config file: {args.config}")
     
     # Load configuration
@@ -759,13 +877,21 @@ def main():
     # Apply CLI overrides
     config = apply_cli_overrides(config, args)
     
-    print(f"Initial capital: ${config['initial_capital']:,}")
-    print(f"Backtest mode: {'Yes' if args.backtest else 'No'}")
-    print(f"Wheel strategy: {'Enabled' if config['strategies']['wheel'] else 'Disabled'}")
-    print(f"Rotator strategy: {'Enabled' if config['strategies']['rotator'] else 'Disabled'}")
+    # Validate data mode and provide guidance
+    data_mode = validate_data_mode_config(config)
     
-    # Initialize enabled strategies with proper capital allocation
-    strategies = initialize_strategies(config)
+    # Initialize PriceFetcher for live data if needed
+    price_fetcher = initialize_price_fetcher(config)
+    
+    print(f"\nConfiguration Summary:")
+    print(f"  Initial capital: ${config['initial_capital']:,}")
+    print(f"  Data mode: {data_mode}")
+    print(f"  Backtest mode: {'Yes' if args.backtest else 'No'}")
+    print(f"  Wheel strategy: {'Enabled' if config['strategies']['wheel'] else 'Disabled'}")
+    print(f"  Rotator strategy: {'Enabled' if config['strategies']['rotator'] else 'Disabled'}")
+    
+    # Initialize enabled strategies with proper capital allocation and data source
+    strategies = initialize_strategies(config, price_fetcher)
     
     # Execute strategies and collect trade results
     all_trades = execute_strategies(strategies, backtest=args.backtest)

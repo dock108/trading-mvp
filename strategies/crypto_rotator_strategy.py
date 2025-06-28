@@ -3,37 +3,61 @@ Crypto Rotator Strategy implementation.
 
 This module simulates a cryptocurrency rotation strategy on BTC, ETH, SOL.
 The strategy rotates between cryptocurrencies based on performance metrics.
+
+Features:
+- Live cryptocurrency data integration via PriceFetcher
+- Fallback to mock data for testing
+- Production-ready error handling
+- Performance-based rotation algorithm
 """
 
 import csv
 import pandas as pd
 from datetime import datetime
 import random
+import logging
+from typing import List, Dict, Optional
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class CryptoRotator:
-    """Crypto Rotator Strategy for cryptocurrencies."""
+    """Crypto Rotator Strategy for cryptocurrencies with live data support."""
     
-    def __init__(self, capital, coins, config=None):
+    def __init__(self, capital, coins, config=None, price_fetcher=None):
         """Initialize the crypto rotator strategy.
         
         Args:
             capital (float): Capital allocated to this strategy
             coins (list): List of crypto symbols (e.g., ['BTC', 'ETH', 'SOL'])
             config (dict): Additional configuration parameters
+            price_fetcher: PriceFetcher instance for live data (optional)
         """
         self.initial_capital = capital
         self.capital = capital
         self.coins = coins
         self.config = config or {}
+        self.price_fetcher = price_fetcher
         self.trades = []
+        
+        # Data mode configuration
+        self.data_mode = self.config.get('data_mode', 'mock')
+        self.simulation_weeks = self.config.get('simulation', {}).get('weeks_to_simulate', 8)
+        
+        # Symbol mapping for APIs (BTC -> bitcoin, ETH -> ethereum, etc.)
+        self.symbol_mapping = self.config.get('data_sources', {}).get('crypto', {}).get('symbols', {
+            'BTC': 'bitcoin',
+            'ETH': 'ethereum', 
+            'SOL': 'solana'
+        })
         
         # Current holding tracking
         self.current_holding = None  # Which crypto we currently hold
         self.current_quantity = 0.0  # How much of that crypto we own
         self.current_value = 0.0     # Current USD value of holdings
         
-        # Mock price data for simulation
-        self.prices = self._generate_mock_prices()
+        # Price data (will be populated by _initialize_price_data)
+        self.prices = {}
         self.current_week = 0
         
         # Performance tracking
@@ -41,52 +65,123 @@ class CryptoRotator:
         self.total_return = 0.0
         self.portfolio_history = []  # Track portfolio value over time
         self.realized_pnl = 0.0      # Track realized gains/losses from trades
+        
+        # Initialize price data
+        self._initialize_price_data()
     
-    def _generate_mock_prices(self):
+    def _initialize_price_data(self):
+        """Initialize price data based on data mode configuration."""
+        if self.data_mode == 'live' and self.price_fetcher:
+            try:
+                logger.info(f"Fetching live crypto data for {len(self.coins)} symbols")
+                self.prices = self._fetch_live_prices()
+                logger.info(f"Successfully loaded live crypto data for {len(self.prices)} symbols")
+            except Exception as e:
+                logger.warning(f"Failed to fetch live crypto data, falling back to mock data: {e}")
+                self.prices = self._generate_mock_prices()
+        else:
+            if self.data_mode == 'live':
+                logger.warning("Live mode requested but no price_fetcher provided, using mock data")
+            self.prices = self._generate_mock_prices()
+    
+    def _fetch_live_prices(self) -> Dict[str, List[float]]:
+        """Fetch live cryptocurrency data for all coins."""
+        if not self.price_fetcher:
+            raise ValueError("PriceFetcher not available for live data")
+        
+        prices = {}
+        days_to_fetch = max(self.simulation_weeks, 7)  # Ensure we have enough data
+        
+        for coin_symbol in self.coins:
+            try:
+                # Map strategy symbol to API identifier (e.g., BTC -> bitcoin)
+                api_symbol = self.symbol_mapping.get(coin_symbol, coin_symbol.lower())
+                logger.debug(f"Fetching {coin_symbol} data using API symbol: {api_symbol}")
+                
+                coin_prices = self.price_fetcher.get_prices(api_symbol, 'crypto', days_to_fetch)
+                
+                if len(coin_prices) < self.simulation_weeks:
+                    logger.warning(f"Insufficient data for {coin_symbol}: got {len(coin_prices)}, need {self.simulation_weeks}")
+                    # Pad with last known price if needed
+                    while len(coin_prices) < self.simulation_weeks:
+                        coin_prices.append(coin_prices[-1])
+                
+                prices[coin_symbol] = coin_prices[:self.simulation_weeks]
+                logger.info(f"Loaded {len(prices[coin_symbol])} price points for {coin_symbol}")
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch prices for {coin_symbol}: {e}")
+                # Use fallback mock data for this coin
+                prices[coin_symbol] = self._generate_mock_prices_for_coin(coin_symbol)
+        
+        return prices
+    
+    def _generate_mock_prices_for_coin(self, coin_symbol: str) -> List[float]:
+        """Generate mock prices for a single cryptocurrency."""
+        base_prices = {
+            "BTC": 50000,
+            "ETH": 3000,
+            "SOL": 100
+        }
+        
+        base_price = base_prices.get(coin_symbol, 1000)
+        
+        if self.config.get('test_mode', False) or self.config.get('simulation', {}).get('enable_deterministic_mode', False):
+            # Deterministic price sequences for different coins to force rotations
+            if coin_symbol == "BTC":
+                multipliers = [1.0, 1.04, 0.96, 1.02, 0.98, 1.08, 0.94, 1.10]
+            elif coin_symbol == "ETH":
+                multipliers = [1.0, 0.967, 1.067, 0.967, 1.133, 1.0, 1.167, 1.067]
+            elif coin_symbol == "SOL":
+                multipliers = [1.0, 1.10, 0.95, 1.05, 1.20, 0.90, 1.15, 1.25]
+            else:
+                # Default pattern for unknown coins
+                multipliers = [1.0, 1.02, 0.98, 1.01, 0.99, 1.03, 0.97, 1.01]
+            
+            return [base_price * mult for mult in multipliers[:self.simulation_weeks]]
+        else:
+            # Random generation with higher volatility for crypto
+            random.seed(42 + hash(coin_symbol))
+            prices = [base_price]
+            
+            for week in range(self.simulation_weeks - 1):
+                # Crypto has higher volatility: -10% to +15% weekly
+                price_change = random.uniform(-0.10, 0.15)
+                new_price = prices[-1] * (1 + price_change)
+                prices.append(round(new_price, 2))
+            
+            return prices
+    
+    def _generate_mock_prices(self) -> Dict[str, List[float]]:
         """Generate mock price data for crypto simulation.
         
         Returns:
             dict: Weekly prices for each crypto
         """
-        # Use test mode for deterministic rotation demonstration
-        if self.config.get('test_mode', False):
-            # Create deterministic price sequences to force rotations
-            prices = {
-                "BTC": [50000, 52000, 48000, 51000, 49000, 53000, 47000, 55000, 50000],  # 9 weeks
-                "ETH": [3000, 2900, 3200, 3100, 3400, 3000, 3500, 3200, 3300],
-                "SOL": [100, 110, 95, 105, 120, 90, 115, 105, 125]
-            }
-            
-            # Ensure all coins have same length
-            for coin in self.coins:
-                if coin not in prices:
-                    prices[coin] = [1000] * 9  # Default fallback
-            
-            return prices
+        prices = {}
+        
+        for coin in self.coins:
+            prices[coin] = self._generate_mock_prices_for_coin(coin)
+        
+        logger.info(f"Generated mock crypto price data for {len(prices)} coins")
+        return prices
+    
+    def get_data_source_info(self) -> Dict[str, str]:
+        """Get information about the current data source being used."""
+        info = {
+            'data_mode': self.data_mode,
+            'price_fetcher_available': self.price_fetcher is not None,
+            'coins_loaded': list(self.prices.keys()),
+            'symbol_mapping': self.symbol_mapping,
+            'simulation_weeks': self.simulation_weeks
+        }
+        
+        if self.data_mode == 'live' and self.price_fetcher:
+            info['data_source'] = 'Live cryptocurrency data via PriceFetcher'
         else:
-            # Starting prices based on realistic crypto values
-            base_prices = {
-                "BTC": 50000,   # Bitcoin around $50k
-                "ETH": 3000,    # Ethereum around $3k  
-                "SOL": 100      # Solana around $100
-            }
-            
-            prices = {}
-            random.seed(123)  # Different seed than wheel strategy
-            
-            for coin in self.coins:
-                base_price = base_prices.get(coin, 1000)
-                weekly_prices = [base_price]
-                
-                # Generate 8 weeks of price movements (-10% to +15% weekly for crypto volatility)
-                for week in range(8):
-                    price_change = random.uniform(-0.10, 0.15)
-                    new_price = weekly_prices[-1] * (1 + price_change)
-                    weekly_prices.append(round(new_price, 2))
-                
-                prices[coin] = weekly_prices
-                
-            return prices
+            info['data_source'] = 'Mock/simulated data'
+        
+        return info
     
     def get_current_price(self, coin):
         """Get current price for a coin.
