@@ -19,7 +19,7 @@ allocation:
 # =============================================================================
 
 # Data Mode: "live", "mock", or "hybrid"
-data_mode: "mock"
+data_mode: "live"
 
 # Market Data Sources
 data_sources:
