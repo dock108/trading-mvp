@@ -184,13 +184,18 @@ def run_rotator_strategy(config: Dict[str, Any], price_fetcher=None) -> Dict[str
         # Calculate execution time
         execution_time = (end_time - start_time).total_seconds()
         
-        # Get summary metrics from strategy
+        # Get summary metrics from strategy - use actual portfolio value
+        final_portfolio_value = strategy.get_current_portfolio_value()
+        total_return = ((final_portfolio_value - rotator_capital) / rotator_capital) * 100 if rotator_capital > 0 else 0.0
+        
         summary = {
             "total_trades": len(trades),
             "initial_capital": rotator_capital,
-            "final_capital": getattr(strategy, 'current_capital', rotator_capital),
-            "total_return": getattr(strategy, 'total_return', 0.0),
-            "execution_time": execution_time
+            "final_capital": final_portfolio_value,
+            "total_return": total_return,
+            "execution_time": execution_time,
+            "realized_pnl": getattr(strategy, 'realized_pnl', 0.0),
+            "unrealized_pnl": strategy.get_unrealized_pnl()
         }
         
         # Clean trade data for API response - convert empty strikes to None

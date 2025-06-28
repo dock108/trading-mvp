@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Play, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { DATA_MODES, DEFAULTS } from '../utils/constants';
 import type { ConfigData } from '../types';
 
 interface ControlsPanelProps {
@@ -22,6 +23,19 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   const [localConfig, setLocalConfig] = useState(config);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>(['wheel', 'rotator']);
 
+  const strategies = [
+    {
+      id: 'wheel',
+      name: 'Options Wheel Strategy',
+      description: 'Cash-secured puts and covered calls on ETFs'
+    },
+    {
+      id: 'rotator',
+      name: 'Crypto Rotator Strategy',
+      description: 'Momentum-based rotation between cryptocurrencies'
+    }
+  ];
+
   const handleConfigChange = (key: string, value: any, nested?: string) => {
     setLocalConfig(prev => {
       const newConfig = { ...prev };
@@ -43,7 +57,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   };
 
   const handleSymbolsChange = (type: 'wheel_symbols' | 'rotator_symbols', value: string) => {
-    const symbols = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const symbols = value.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
     handleConfigChange(type, symbols);
   };
 
@@ -78,31 +92,20 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Strategy Selection</h3>
         
         <div className="space-y-3">
-          <label className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              checked={selectedStrategies.includes('wheel')}
-              onChange={() => handleStrategyToggle('wheel')}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-            />
-            <div>
-              <span className="font-medium text-gray-900">Options Wheel Strategy</span>
-              <p className="text-sm text-gray-600">Cash-secured puts and covered calls on ETFs</p>
-            </div>
-          </label>
-
-          <label className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              checked={selectedStrategies.includes('rotator')}
-              onChange={() => handleStrategyToggle('rotator')}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-            />
-            <div>
-              <span className="font-medium text-gray-900">Crypto Rotator Strategy</span>
-              <p className="text-sm text-gray-600">Momentum-based rotation between cryptocurrencies</p>
-            </div>
-          </label>
+          {strategies.map(strategy => (
+            <label key={strategy.id} className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                checked={selectedStrategies.includes(strategy.id)}
+                onChange={() => handleStrategyToggle(strategy.id)}
+                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <div>
+                <span className="font-medium text-gray-900">{strategy.name}</span>
+                <p className="text-sm text-gray-600">{strategy.description}</p>
+              </div>
+            </label>
+          ))}
         </div>
       </div>
 
@@ -121,8 +124,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               onChange={(e) => handleConfigChange('data_mode', e.target.value)}
               className="select-field"
             >
-              <option value="mock">Mock Data (Simulation)</option>
-              <option value="live">Live Market Data</option>
+              <option value={DATA_MODES.MOCK}>Mock Data (Simulation)</option>
+              <option value={DATA_MODES.LIVE}>Live Market Data</option>
             </select>
             <p className="text-xs text-gray-500 mt-1">
               Live data uses real market feeds but still runs in simulation mode
@@ -138,7 +141,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               type="text"
               value={localConfig.wheel_symbols.join(', ')}
               onChange={(e) => handleSymbolsChange('wheel_symbols', e.target.value)}
-              placeholder="SPY, QQQ, IWM"
+              placeholder={DEFAULTS.WHEEL_SYMBOLS.join(', ')}
               className="input-field"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -155,7 +158,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
               type="text"
               value={localConfig.rotator_symbols.join(', ')}
               onChange={(e) => handleSymbolsChange('rotator_symbols', e.target.value)}
-              placeholder="BTC, ETH, SOL"
+              placeholder={DEFAULTS.ROTATOR_SYMBOLS.join(', ')}
               className="input-field"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -174,7 +177,12 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                 min="1"
                 max="52"
                 value={localConfig.simulation.weeks_to_simulate}
-                onChange={(e) => handleConfigChange('weeks_to_simulate', parseInt(e.target.value), 'simulation')}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value >= 1 && value <= 52) {
+                    handleConfigChange('weeks_to_simulate', value, 'simulation');
+                  }
+                }}
                 className="input-field"
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -214,7 +222,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
           <span>
             {isLoading 
               ? 'Running Strategies...' 
-              : `Run ${selectedStrategies.length} Strategy${selectedStrategies.length !== 1 ? 'ies' : ''}`
+              : `Run ${selectedStrategies.length} Strateg${selectedStrategies.length !== 1 ? 'ies' : 'y'}`
             }
           </span>
         </button>

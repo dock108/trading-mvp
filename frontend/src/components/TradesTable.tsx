@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
+import { formatCurrency as formatCurrencyUtil, formatNumber, getPnLColor } from '../utils/formatters';
 import type { TradeRecord } from '../types';
 
 interface TradesTableProps {
@@ -72,20 +73,9 @@ const TradesTable: React.FC<TradesTableProps> = ({ trades, title }) => {
     }
   });
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString(undefined, {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  };
-
-  const formatQuantity = (quantity: number) => {
-    return quantity.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 4
-    });
+  const formatCashFlow = (amount: number) => {
+    const sign = amount >= 0 ? '+' : '';
+    return sign + formatCurrencyUtil(amount);
   };
 
   const getActionColor = (action: string) => {
@@ -212,15 +202,13 @@ const TradesTable: React.FC<TradesTableProps> = ({ trades, title }) => {
                     </span>
                   </td>
                   <td className="text-right font-mono">
-                    {formatQuantity(trade.quantity)}
+                    {formatNumber(trade.quantity)}
                   </td>
                   <td className="text-right font-mono">
-                    {formatCurrency(trade.price)}
+                    {formatCurrencyUtil(trade.price)}
                   </td>
-                  <td className={`text-right font-mono font-semibold ${
-                    trade.cash_flow >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {formatCurrency(trade.cash_flow)}
+                  <td className={`text-right font-mono font-semibold ${getPnLColor(trade.cash_flow)}`}>
+                    {formatCashFlow(trade.cash_flow)}
                   </td>
                   <td className="text-sm text-gray-600 max-w-xs truncate" title={trade.notes}>
                     {trade.notes}

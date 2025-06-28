@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { LoadingSpinner } from './common';
 import type { StrategyResults, ConfigData } from '../types';
 import TradesTable from './TradesTable';
 import SummaryMetrics from './SummaryMetrics';
@@ -17,7 +18,7 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ results, isLoading, config 
       <div className="space-y-6">
         <div className="dashboard-card">
           <div className="text-center py-12">
-            <div className="loading-spinner mx-auto mb-4"></div>
+            <LoadingSpinner size="lg" className="mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Running Strategies</h3>
             <p className="text-gray-600">
               Executing trading strategies with {config.data_mode} data...

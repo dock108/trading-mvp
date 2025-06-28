@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from .routes import config, strategies, files
+from .routes import config, strategies, files, recommendations
 
 # Create FastAPI application
 app = FastAPI(
@@ -34,6 +34,7 @@ app.add_middleware(
 app.include_router(config.router, prefix="/api", tags=["configuration"])
 app.include_router(strategies.router, prefix="/api", tags=["strategies"])
 app.include_router(files.router, prefix="/api", tags=["files"])
+app.include_router(recommendations.router, prefix="/api/recommendations", tags=["recommendations"])
 
 # Health check endpoint
 @app.get("/api/health")

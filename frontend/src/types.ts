@@ -1,5 +1,9 @@
 // Type definitions for the Trading Dashboard
 
+// Re-export types from other modules
+export * from './types/api';
+export * from './types/ui';
+
 export interface ConfigData {
   initial_capital: number;
   strategies: {
