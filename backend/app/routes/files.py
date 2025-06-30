@@ -162,10 +162,13 @@ async def download_data_file(filename: str):
     
     file_path = None
     for path in possible_paths:
-        # Ensure the path is within the allowed directories
-        if path.startswith(CACHE_DIR) or path.startswith(DATA_DIR):
-            if os.path.exists(path):
-                file_path = path
+        # Normalize the path to prevent path traversal attacks
+        normalized_path = os.path.normpath(path)
+        # Ensure the normalized path is strictly within the allowed directories
+        if os.path.commonpath([normalized_path, CACHE_DIR]) == CACHE_DIR or \
+           os.path.commonpath([normalized_path, DATA_DIR]) == DATA_DIR:
+            if os.path.exists(normalized_path):
+                file_path = normalized_path
                 break
     
     if not file_path:
