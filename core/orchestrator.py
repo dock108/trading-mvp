@@ -91,12 +91,13 @@ class TradingOrchestrator:
         if not self.strategies:
             raise OrchestrationError("No strategies enabled in configuration")
     
-    def execute_simulation(self, weeks: int = 52, start_week: int = 0) -> List[Dict[str, Any]]:
+    def execute_simulation(self, weeks: int = 52, start_week: int = 0, use_weekly_loop: bool = False) -> List[Dict[str, Any]]:
         """Execute trading simulation across all strategies.
         
         Args:
             weeks: Number of weeks to simulate (passed to strategies)
             start_week: Starting week number (not used by current strategies)
+            use_weekly_loop: If True, use orchestrator's weekly loop instead of strategy run()
             
         Returns:
             List of all trades executed across strategies
@@ -116,30 +117,71 @@ class TradingOrchestrator:
             
             all_trades = []
             
-            # Execute each strategy
-            for strategy_name, strategy in self.strategies.items():
-                try:
-                    logger.info(f"Executing {strategy_name} strategy...")
+            if use_weekly_loop:
+                # Use orchestrator's week-by-week execution
+                logger.info("Using orchestrator weekly loop for synchronized execution")
+                
+                # Initialize portfolio tracking
+                self.portfolio_history = []
+                initial_capital = self.config.get('initial_capital', 100000)
+                self.portfolio_history.append({
+                    'week': 0,
+                    'value': initial_capital,
+                    'strategies': {name: getattr(strategy, 'capital', 0) 
+                                 for name, strategy in self.strategies.items()}
+                })
+                
+                # Execute week by week
+                for week in range(weeks):
+                    week_trades = self._execute_week(week)
+                    all_trades.extend(week_trades)
                     
-                    # Call strategy's run method (strategies manage their own simulation loop)
-                    strategy_trades = strategy.run(backtest=True)
+                    # Track portfolio value
+                    portfolio_value = self._calculate_total_portfolio_value()
+                    self.portfolio_history.append({
+                        'week': week + 1,
+                        'value': portfolio_value,
+                        'strategies': {name: strategy.get_current_portfolio_value() 
+                                     for name, strategy in self.strategies.items()
+                                     if hasattr(strategy, 'get_current_portfolio_value')}
+                    })
                     
-                    # Add strategy name to each trade
-                    for trade in strategy_trades:
-                        trade['strategy'] = strategy_name
+                    # Log portfolio snapshot to database
+                    for strategy_name, strategy in self.strategies.items():
+                        if hasattr(strategy, 'get_current_portfolio_value'):
+                            value = strategy.get_current_portfolio_value()
+                            self.db.save_portfolio_snapshot(run_id, strategy_name, week, value)
+                    
+                    logger.debug(f"Week {week}: {len(week_trades)} trades, portfolio: ${portfolio_value:,.2f}")
+                
+            else:
+                # Use existing strategy-level execution
+                logger.info("Using strategy-level execution (strategies manage their own loops)")
+                
+                # Execute each strategy
+                for strategy_name, strategy in self.strategies.items():
+                    try:
+                        logger.info(f"Executing {strategy_name} strategy...")
                         
-                        # Log to database
-                        try:
-                            log_trade_to_db(trade)
-                        except Exception as e:
-                            logger.warning(f"Failed to log trade to database: {e}")
-                    
-                    all_trades.extend(strategy_trades)
-                    logger.info(f"{strategy_name} completed: {len(strategy_trades)} trades")
-                    
-                except Exception as e:
-                    logger.error(f"Strategy {strategy_name} failed: {e}")
-                    continue
+                        # Call strategy's run method with weeks parameter
+                        strategy_trades = strategy.run(backtest=True, num_weeks=weeks)
+                        
+                        # Add strategy name to each trade
+                        for trade in strategy_trades:
+                            trade['strategy'] = strategy_name
+                            
+                            # Log to database
+                            try:
+                                log_trade_to_db(trade)
+                            except Exception as e:
+                                logger.warning(f"Failed to log trade to database: {e}")
+                        
+                        all_trades.extend(strategy_trades)
+                        logger.info(f"{strategy_name} completed: {len(strategy_trades)} trades")
+                        
+                    except Exception as e:
+                        logger.error(f"Strategy {strategy_name} failed: {e}")
+                        continue
             
             # Sort trades chronologically for output
             all_trades.sort(key=lambda t: (t.get('week', ''), t.get('timestamp', '')))
@@ -501,3 +543,11 @@ class TradingOrchestrator:
                 results[f'strategy_{strategy_name}'] = f"❌ Error: {e}"
         
         return results
+    
+    def get_portfolio_history(self) -> List[Dict[str, Any]]:
+        """Get portfolio value history if available.
+        
+        Returns:
+            List of portfolio snapshots with week and value
+        """
+        return getattr(self, 'portfolio_history', [])

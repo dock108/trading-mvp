@@ -291,45 +291,49 @@ class CryptoRotator:
     def advance_week(self):
         """Advance to the next week in the simulation."""
         self.current_week += 1
-        print(f"\n--- Week {self.current_week} ---")
+        logger.info(f"--- Week {self.current_week} ---")
         
         # Display current prices
         for coin in self.coins:
             price = self.get_current_price(coin)
-            print(f"{coin}: ${price:,.2f}")
+            logger.info(f"{coin}: ${price:,.2f}")
         
         # Calculate and display weekly returns
         if self.current_week > 0:
             returns = self.calculate_weekly_returns()
-            print("Weekly Returns:")
+            logger.info("Weekly Returns:")
             for coin, return_pct in returns.items():
-                print(f"  {coin}: {return_pct:+.2%}")
+                logger.info(f"  {coin}: {return_pct:+.2%}")
             
             best_performer = self.get_best_performer()
-            print(f"Best Performer: {best_performer} ({returns[best_performer]:+.2%})")
+            logger.info(f"Best Performer: {best_performer} ({returns[best_performer]:+.2%})")
     
-    def run(self, backtest=True):
+    def run(self, backtest=True, num_weeks=None):
         """Run the crypto rotator strategy simulation.
         
         Args:
             backtest (bool): Whether to run in backtest mode with deterministic data
+            num_weeks (int): Number of weeks to simulate. If None, uses config value.
             
         Returns:
             list: List of trade records
         """
-        print(f"Executing Crypto Rotator Strategy with ${self.capital:,.2f}")
-        print(f"Trading coins: {self.coins}")
+        logger.info(f"Executing Crypto Rotator Strategy with ${self.capital:,.2f}")
+        logger.info(f"Trading coins: {self.coins}")
         
         # Display initial prices
-        print(f"\n--- Week {self.current_week} (Start) ---")
+        logger.info(f"--- Week {self.current_week} (Start) ---")
         for coin in self.coins:
             price = self.get_current_price(coin)
-            print(f"{coin}: ${price:,.2f}")
+            logger.info(f"{coin}: ${price:,.2f}")
         
-        print(f"Initial Portfolio: ${self.get_current_portfolio_value():,.2f}")
+        logger.info(f"Initial Portfolio: ${self.get_current_portfolio_value():,.2f}")
         
-        # Run simulation for 8 weeks
-        for week in range(8):
+        # Get number of weeks from parameter or config
+        weeks_to_simulate = num_weeks or self.config.get('simulation', {}).get('weeks_to_simulate', 52)
+        
+        # Run simulation for specified weeks
+        for week in range(weeks_to_simulate):
             if week > 0:
                 self.advance_week()
             
@@ -341,22 +345,22 @@ class CryptoRotator:
             unrealized_pnl = self.get_unrealized_pnl()
             
             if self.current_holding:
-                print(f"Portfolio: {self.current_quantity:.4f} {self.current_holding} = ${current_value:,.2f} (Unrealized P&L: ${unrealized_pnl:+,.2f})")
+                logger.info(f"Portfolio: {self.current_quantity:.4f} {self.current_holding} = ${current_value:,.2f} (Unrealized P&L: ${unrealized_pnl:+,.2f})")
             else:
-                print(f"Portfolio Value: ${current_value:,.2f} (Cash)")
+                logger.info(f"Portfolio Value: ${current_value:,.2f} (Cash)")
         
         # Final summary
         final_value = self.get_current_portfolio_value()
         total_return = ((final_value - self.initial_capital) / self.initial_capital) * 100
         final_unrealized = self.get_unrealized_pnl()
         
-        print(f"\n=== ROTATOR SIMULATION COMPLETE ===")
-        print(f"Initial Capital: ${self.initial_capital:,.2f}")
-        print(f"Final Portfolio Value: ${final_value:,.2f}")
-        print(f"Total Return: {total_return:+.2f}%")
-        print(f"Realized P&L: ${self.realized_pnl:+,.2f}")
-        print(f"Unrealized P&L: ${final_unrealized:+,.2f}")
-        print(f"Total Trades: {len(self.trades)}")
+        logger.info(f"=== ROTATOR SIMULATION COMPLETE ===")
+        logger.info(f"Initial Capital: ${self.initial_capital:,.2f}")
+        logger.info(f"Final Portfolio Value: ${final_value:,.2f}")
+        logger.info(f"Total Return: {total_return:+.2f}%")
+        logger.info(f"Realized P&L: ${self.realized_pnl:+,.2f}")
+        logger.info(f"Unrealized P&L: ${final_unrealized:+,.2f}")
+        logger.info(f"Total Trades: {len(self.trades)}")
         
         # Print portfolio evolution
         self._print_portfolio_summary()
@@ -370,20 +374,55 @@ class CryptoRotator:
     
     def _print_portfolio_summary(self):
         """Print a summary of portfolio value evolution."""
-        print(f"\n=== PORTFOLIO EVOLUTION ===")
+        logger.info(f"=== PORTFOLIO EVOLUTION ===")
         for entry in self.portfolio_history:
             if entry['holding']:
                 change_str = f" ({entry['change']:+,.2f})" if entry['change'] != 0 else ""
-                print(f"Week {entry['week']}: {entry['quantity']:.4f} {entry['holding']} @ ${entry['price']:.2f} = ${entry['value']:,.2f}{change_str}")
+                logger.info(f"Week {entry['week']}: {entry['quantity']:.4f} {entry['holding']} @ ${entry['price']:.2f} = ${entry['value']:,.2f}{change_str}")
             else:
-                print(f"Week {entry['week']}: Cash = ${entry['value']:,.2f}")
+                logger.info(f"Week {entry['week']}: Cash = ${entry['value']:,.2f}")
         
         # Show best and worst weeks
         if len(self.portfolio_history) > 1:
             best_week = max(self.portfolio_history[1:], key=lambda x: x['change'])
             worst_week = min(self.portfolio_history[1:], key=lambda x: x['change'])
-            print(f"\nBest Week: Week {best_week['week']} (+${best_week['change']:,.2f})")
-            print(f"Worst Week: Week {worst_week['week']} ({worst_week['change']:+,.2f})")
+            logger.info(f"Best Week: Week {best_week['week']} (+${best_week['change']:,.2f})")
+            logger.info(f"Worst Week: Week {worst_week['week']} ({worst_week['change']:+,.2f})")
+    
+    def execute_week(self, week_number, prices=None):
+        """Execute one week of the crypto rotator strategy.
+        
+        This method is designed to be called by the orchestrator for week-by-week execution.
+        
+        Args:
+            week_number (int): The week number to execute
+            prices (dict): Optional dict of coin -> price for this week
+            
+        Returns:
+            list: Trades executed this week
+        """
+        week_trades = []
+        self.current_week = week_number
+        
+        # Update prices if provided
+        if prices:
+            for coin, price in prices.items():
+                if coin in self.prices:
+                    # Ensure we have enough price data
+                    while len(self.prices[coin]) <= week_number:
+                        self.prices[coin].append(price)
+                    self.prices[coin][week_number] = price
+        
+        # Process rotation logic
+        self._process_weekly_rotation()
+        
+        # Update portfolio value and track changes
+        current_value = self.update_portfolio_value()
+        
+        # Collect trades from this week
+        week_trades = [t for t in self.trades if t.get('week') == f'Week{week_number}']
+        
+        return week_trades
     
     def _process_weekly_rotation(self):
         """Process weekly rotation logic based on performance."""
@@ -401,12 +440,12 @@ class CryptoRotator:
                 self._buy_crypto(best_performer)
             elif self.current_holding != best_performer:
                 # Rotate: sell current holding and buy best performer
-                print(f"Rotating from {self.current_holding} to {best_performer}")
+                logger.info(f"Rotating from {self.current_holding} to {best_performer}")
                 self._sell_crypto()
                 self._buy_crypto(best_performer)
             else:
                 # Stay with current holding
-                print(f"Staying with {self.current_holding} (still top performer)")
+                logger.info(f"Staying with {self.current_holding} (still top performer)")
     
     def _buy_crypto(self, coin):
         """Buy crypto with all available capital.
@@ -416,7 +455,7 @@ class CryptoRotator:
         """
         price = self.get_current_price(coin)
         if price <= 0:
-            print(f"Error: Invalid price for {coin}")
+            logger.error(f"Invalid price for {coin}")
             return
         
         # Use all available capital to buy
@@ -438,12 +477,12 @@ class CryptoRotator:
             'notes': f'Bought {quantity:.4f} {coin} @ ${price:.2f}'
         })
         
-        print(f"Bought {quantity:.4f} {coin} @ ${price:.2f} (${available_capital:,.2f})")
+        logger.info(f"Bought {quantity:.4f} {coin} @ ${price:.2f} (${available_capital:,.2f})")
     
     def _sell_crypto(self):
         """Sell all current crypto holdings."""
         if self.current_holding is None or self.current_quantity <= 0:
-            print("No crypto to sell")
+            logger.warning("No crypto to sell")
             return
         
         coin = self.current_holding
@@ -461,7 +500,7 @@ class CryptoRotator:
             'notes': f'Sold {quantity:.4f} {coin} @ ${price:.2f}'
         })
         
-        print(f"Sold {quantity:.4f} {coin} @ ${price:.2f} (${proceeds:,.2f})")
+        logger.info(f"Sold {quantity:.4f} {coin} @ ${price:.2f} (${proceeds:,.2f})")
         
         # Calculate realized P&L from this trade
         # Find the corresponding buy trade for this holding
@@ -470,7 +509,7 @@ class CryptoRotator:
                 cost_basis = abs(trade['cash_flow'])
                 realized_gain = proceeds - cost_basis
                 self.realized_pnl += realized_gain
-                print(f"Realized P&L: ${realized_gain:+,.2f} (Cost: ${cost_basis:,.2f}, Proceeds: ${proceeds:,.2f})")
+                logger.info(f"Realized P&L: ${realized_gain:+,.2f} (Cost: ${cost_basis:,.2f}, Proceeds: ${proceeds:,.2f})")
                 break
         
         # Update holdings - convert to cash
@@ -508,7 +547,7 @@ class CryptoRotator:
             filename (str): CSV filename
         """
         if not self.trades:
-            print("No rotator trades to export.")
+            logger.info("No rotator trades to export.")
             return
         
         fieldnames = ['week', 'strategy', 'symbol', 'action', 'quantity', 'price', 'strike', 'cash_flow', 'notes', 'timestamp']
@@ -524,20 +563,20 @@ class CryptoRotator:
             
             writer.writerows(self.trades)
         
-        print(f"Exported {len(self.trades)} rotator trades to {filename}")
+        logger.info(f"Exported {len(self.trades)} rotator trades to {filename}")
     
     def print_trades_summary(self):
         """Print a summary of all rotator trades."""
         if not self.trades:
-            print("No rotator trades recorded.")
+            logger.info("No rotator trades recorded.")
             return
         
-        print(f"\n=== ROTATOR TRADES SUMMARY ({len(self.trades)} trades) ===")
+        logger.info(f"=== ROTATOR TRADES SUMMARY ({len(self.trades)} trades) ===")
         for trade in self.trades:
             cash_flow_str = f"${trade['cash_flow']:+.2f}" if trade['cash_flow'] != 0 else ""
-            print(f"{trade['week']}: {trade['action']} {trade['quantity']:.4f} {trade['symbol']} @ ${trade['price']:.2f} - {cash_flow_str}")
+            logger.info(f"{trade['week']}: {trade['action']} {trade['quantity']:.4f} {trade['symbol']} @ ${trade['price']:.2f} - {cash_flow_str}")
             if trade['notes']:
-                print(f"    Note: {trade['notes']}")
+                logger.info(f"    Note: {trade['notes']}")
         
         # Summary by action type
         actions = {}
@@ -547,10 +586,10 @@ class CryptoRotator:
             actions[action] = actions.get(action, 0) + 1
             total_cash_flow += trade['cash_flow']
         
-        print(f"\nROTATOR ACTION SUMMARY:")
+        logger.info(f"ROTATOR ACTION SUMMARY:")
         for action, count in actions.items():
-            print(f"  {action}: {count}")
-        print(f"Net Cash Flow: ${total_cash_flow:.2f}")
+            logger.info(f"  {action}: {count}")
+        logger.info(f"Net Cash Flow: ${total_cash_flow:.2f}")
 
 
 # For backward compatibility with old import
@@ -573,7 +612,7 @@ if __name__ == "__main__":
     strategy = CryptoRotator(
         capital=test_capital,
         coins=test_coins,
-        config={'test_mode': True}
+        config={'test_mode': True, 'simulation': {'weeks_to_simulate': 8}}
     )
     
     # Display initial mock prices for verification

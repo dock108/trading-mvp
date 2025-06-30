@@ -41,6 +41,13 @@ import csv
 import argparse
 from datetime import datetime
 from collections import defaultdict
+import sys
+import os
+
+# Add parent directory to path to import modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.performance_metrics import PerformanceMetrics
 
 def read_trades_csv(filename='trades.csv'):
     """Read trades from CSV file and return structured data.
@@ -617,6 +624,38 @@ def calculate_performance_metrics(trades):
         }
     }
 
+def simulate_portfolio_history(trades, strategy_name, initial_capital):
+    """Simulate portfolio value history from trades.
+    
+    This is a simplified version that tracks cumulative cash flows.
+    In a real implementation, we would track actual portfolio values including positions.
+    
+    Args:
+        trades: List of all trades
+        strategy_name: Name of strategy to filter for
+        initial_capital: Starting capital
+        
+    Returns:
+        List of portfolio values over time
+    """
+    portfolio_values = [initial_capital]
+    current_value = initial_capital
+    
+    # Get trades for this strategy sorted by week
+    strategy_trades = [t for t in trades if t['strategy'].lower() == strategy_name.lower()]
+    
+    # Group by week
+    weeks = sorted(set(t['week'] for t in strategy_trades))
+    
+    for week in weeks:
+        week_trades = [t for t in strategy_trades if t['week'] == week]
+        week_cash_flow = sum(t['amount'] for t in week_trades)
+        current_value += week_cash_flow
+        portfolio_values.append(current_value)
+    
+    return portfolio_values
+
+
 def print_performance_metrics(trades):
     """Print detailed performance metrics for each strategy.
     
@@ -629,6 +668,21 @@ def print_performance_metrics(trades):
     
     metrics = calculate_performance_metrics(trades)
     
+    # Calculate advanced metrics if we have portfolio history
+    # For now, we'll simulate portfolio history from trades
+    perf_calc = PerformanceMetrics()
+    
+    # Extract portfolio values from trades (simplified)
+    # In a real implementation, we'd track actual portfolio values over time
+    wheel_portfolio_values = simulate_portfolio_history(trades, 'wheel', metrics['wheel']['initial_capital'])
+    rotator_portfolio_values = simulate_portfolio_history(trades, 'rotator', metrics['rotator']['initial_capital'])
+    
+    # Calculate advanced metrics for each strategy
+    wheel_metrics = perf_calc.calculate_all_metrics(wheel_portfolio_values, 
+                                                  [t for t in trades if t['strategy'].lower() == 'wheel'])
+    rotator_metrics = perf_calc.calculate_all_metrics(rotator_portfolio_values,
+                                                    [t for t in trades if t['strategy'].lower() == 'rotator'])
+    
     # Wheel Strategy Performance
     wheel = metrics['wheel']
     print(f"\nWHEEL STRATEGY PERFORMANCE:")
@@ -636,6 +690,10 @@ def print_performance_metrics(trades):
     print(f"  Final Capital: ${wheel['final_capital']:,.2f}")
     print(f"  Net Cash Flow: ${wheel['net_cash_flow']:+,.2f}")
     print(f"  Total Return: {wheel['return_pct']:+.2f}%")
+    print(f"  Sharpe Ratio: {wheel_metrics['sharpe_ratio']:.3f}")
+    print(f"  Max Drawdown: {wheel_metrics['max_drawdown']:.2f}%")
+    print(f"  Volatility: {wheel_metrics['volatility']:.2f}%")
+    print(f"  Win Rate: {wheel_metrics['win_rate']:.1f}%")
     
     if wheel['position'] != 'cash':
         print(f"  Current Position: {wheel['shares']} shares of {wheel['position']}")
@@ -649,6 +707,10 @@ def print_performance_metrics(trades):
     print(f"  Initial Capital: ${rotator['initial_capital']:,}")
     print(f"  Final Portfolio Value: ${rotator['final_value']:,.2f}")
     print(f"  Total Return: {rotator['return_pct']:+.2f}%")
+    print(f"  Sharpe Ratio: {rotator_metrics['sharpe_ratio']:.3f}")
+    print(f"  Max Drawdown: {rotator_metrics['max_drawdown']:.2f}%")
+    print(f"  Volatility: {rotator_metrics['volatility']:.2f}%")
+    print(f"  Win Rate: {rotator_metrics['win_rate']:.1f}%")
     
     if rotator['position']:
         print(f"  Current Position: 100% in {rotator['position']}")

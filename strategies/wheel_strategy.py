@@ -48,6 +48,13 @@ class WheelStrategy:
         self.price_fetcher = price_fetcher
         self.trades = []
         
+        # Load strategy parameters from config
+        wheel_config = self.config.get('wheel_strategy', {})
+        self.put_strike_pct = wheel_config.get('put_strike_pct', 0.95)
+        self.call_strike_pct = wheel_config.get('call_strike_pct', 1.05)
+        self.put_premium_pct = wheel_config.get('put_premium_pct', 0.02)
+        self.call_premium_pct = wheel_config.get('call_premium_pct', 0.015)
+        
         # P&L tracking
         self.total_premiums_collected = 0.0
         self.realized_gains = 0.0
@@ -200,10 +207,10 @@ class WheelStrategy:
     def advance_week(self):
         """Advance to the next week in the simulation."""
         self.current_week += 1
-        print(f"\n--- Week {self.current_week} ---")
+        logger.info(f"--- Week {self.current_week} ---")
         for symbol in self.symbols:
             price = self.get_current_price(symbol)
-            print(f"{symbol}: ${price}")
+            logger.info(f"{symbol}: ${price}")
         
     def get_position_info(self, symbol):
         """Get current position information for a symbol.
@@ -226,7 +233,7 @@ class WheelStrategy:
         self.capital += amount
         self.update_available_capital()
         if description:
-            print(f"  Capital updated: {'+' if amount >= 0 else ''}${amount:.2f} ({description})")
+            logger.debug(f"Capital updated: {'+' if amount >= 0 else ''}${amount:.2f} ({description})")
     
     def update_available_capital(self):
         """Update available capital based on current positions."""
@@ -270,33 +277,37 @@ class WheelStrategy:
             'total_return_pct': ((self.capital + unrealized - self.initial_capital) / self.initial_capital) * 100
         }
         
-    def run(self, backtest=True):
+    def run(self, backtest=True, num_weeks=None):
         """Run the wheel strategy simulation.
         
         Args:
             backtest (bool): Whether to run in backtest mode with deterministic data
+            num_weeks (int): Number of weeks to simulate. If None, uses config value.
             
         Returns:
             list: List of trade records
         """
-        print(f"Executing Wheel Strategy with ${self.capital:,.2f}")
-        print(f"Trading symbols: {self.symbols}")
-        print(f"Available capital: ${self.available_capital:,.2f}")
+        logger.info(f"Executing Wheel Strategy with ${self.capital:,.2f}")
+        logger.info(f"Trading symbols: {self.symbols}")
+        logger.info(f"Available capital: ${self.available_capital:,.2f}")
         
         # Display initial prices
-        print(f"\n--- Week {self.current_week} (Start) ---")
+        logger.info(f"--- Week {self.current_week} (Start) ---")
         for symbol in self.symbols:
             price = self.get_current_price(symbol)
-            print(f"{symbol}: ${price}")
+            logger.info(f"{symbol}: ${price}")
         
         # Display current positions
-        print("\nInitial Positions:")
+        logger.info("Initial Positions:")
         for symbol in self.symbols:
             pos = self.positions[symbol]
-            print(f"{symbol}: State={pos['state'].value}, Shares={pos['shares']}")
+            logger.info(f"{symbol}: State={pos['state'].value}, Shares={pos['shares']}")
         
-        # Run simulation for 8 weeks
-        for week in range(8):
+        # Get number of weeks from parameter or config
+        weeks_to_simulate = num_weeks or self.config.get('simulation', {}).get('weeks_to_simulate', 52)
+        
+        # Run simulation for specified weeks
+        for week in range(weeks_to_simulate):
             if week > 0:
                 self.advance_week()
             
@@ -308,21 +319,21 @@ class WheelStrategy:
             
             # Show weekly P&L summary
             pnl = self.get_total_pnl()
-            print(f"Week {self.current_week} P&L: Total=${pnl['total_pnl']:.2f} (Premiums=${pnl['total_premiums']:.2f}, Unrealized=${pnl['unrealized_pnl']:.2f})")
+            logger.info(f"Week {self.current_week} P&L: Total=${pnl['total_pnl']:.2f} (Premiums=${pnl['total_premiums']:.2f}, Unrealized=${pnl['unrealized_pnl']:.2f})")
         
         # Final summary
         final_pnl = self.get_total_pnl()
-        print(f"\n=== SIMULATION COMPLETE ===")
-        print(f"Initial Capital: ${self.initial_capital:,.2f}")
-        print(f"Final Capital: ${self.capital:,.2f}")
-        print(f"Available Capital: ${self.available_capital:,.2f}")
-        print(f"Total Trades: {len(self.trades)}")
-        print(f"\nP&L BREAKDOWN:")
-        print(f"  Premiums Collected: ${final_pnl['total_premiums']:.2f}")
-        print(f"  Realized Gains: ${final_pnl['realized_gains']:.2f}")
-        print(f"  Unrealized P&L: ${final_pnl['unrealized_pnl']:.2f}")
-        print(f"  Total P&L: ${final_pnl['total_pnl']:.2f}")
-        print(f"  Total Return: {final_pnl['total_return_pct']:.2f}%")
+        logger.info("=== SIMULATION COMPLETE ===")
+        logger.info(f"Initial Capital: ${self.initial_capital:,.2f}")
+        logger.info(f"Final Capital: ${self.capital:,.2f}")
+        logger.info(f"Available Capital: ${self.available_capital:,.2f}")
+        logger.info(f"Total Trades: {len(self.trades)}")
+        logger.info("P&L BREAKDOWN:")
+        logger.info(f"  Premiums Collected: ${final_pnl['total_premiums']:.2f}")
+        logger.info(f"  Realized Gains: ${final_pnl['realized_gains']:.2f}")
+        logger.info(f"  Unrealized P&L: ${final_pnl['unrealized_pnl']:.2f}")
+        logger.info(f"  Total P&L: ${final_pnl['total_pnl']:.2f}")
+        logger.info(f"  Total Return: {final_pnl['total_return_pct']:.2f}%")
         
         # Print trades summary and export to CSV
         self.print_trades_summary()
@@ -330,6 +341,58 @@ class WheelStrategy:
         
         # Return trade list for main coordination
         return self.trades
+    
+    def execute_week(self, week_number, prices=None):
+        """Execute one week of the wheel strategy.
+        
+        This method is designed to be called by the orchestrator for week-by-week execution.
+        
+        Args:
+            week_number (int): The week number to execute
+            prices (dict): Optional dict of symbol -> price for this week
+            
+        Returns:
+            list: Trades executed this week
+        """
+        week_trades = []
+        self.current_week = week_number
+        
+        # Update prices if provided
+        if prices:
+            for symbol, price in prices.items():
+                if symbol in self.prices:
+                    # Ensure we have enough price data
+                    while len(self.prices[symbol]) <= week_number:
+                        self.prices[symbol].append(price)
+                    self.prices[symbol][week_number] = price
+        
+        # Process each symbol
+        for symbol in self.symbols:
+            self._process_wheel_for_symbol(symbol)
+        
+        # Update available capital after all trades
+        self.update_available_capital()
+        
+        # Collect trades from this week
+        week_trades = [t for t in self.trades if t.get('week') == f'Week{week_number}']
+        
+        return week_trades
+    
+    def get_current_portfolio_value(self):
+        """Get the current total portfolio value including cash and positions.
+        
+        Returns:
+            float: Total portfolio value
+        """
+        total_value = self.capital
+        
+        # Add unrealized value of stock positions
+        for symbol, pos in self.positions.items():
+            if pos['shares'] > 0:
+                current_price = self.get_current_price(symbol)
+                total_value += (current_price - pos['cost_basis']) * pos['shares']
+        
+        return total_value
     
     def _process_wheel_for_symbol(self, symbol):
         """Process wheel strategy for a single symbol for current week.
@@ -356,9 +419,9 @@ class WheelStrategy:
         
         # If no current position, sell a new put
         if pos['current_strike'] is None:
-            # Set strike price slightly below current price (95% of current)
-            strike_price = round(current_price * 0.95, 2)
-            premium = round(strike_price * 0.02, 2)  # 2% premium
+            # Set strike price based on config (default 95% of current)
+            strike_price = round(current_price * self.put_strike_pct, 2)
+            premium = round(strike_price * self.put_premium_pct, 2)  # Premium from config
             
             # Check if we have enough capital for cash-secured put
             required_capital = strike_price * 100  # 100 shares per contract
@@ -384,7 +447,7 @@ class WheelStrategy:
                     'notes': f'Sold put with strike ${strike_price}'
                 })
                 
-                print(f"{symbol}: Sold put with strike ${strike_price}, premium ${premium}")
+                logger.info(f"{symbol}: Sold put with strike ${strike_price}, premium ${premium}")
         
         # Check for assignment at expiration
         elif self.current_week >= pos['expiration_date']:
@@ -395,7 +458,7 @@ class WheelStrategy:
                 self._assign_put(symbol)
             else:
                 # Put expires worthless - reset for next cycle
-                print(f"{symbol}: Put expired worthless, keeping premium ${pos['option_premium_collected']}")
+                logger.info(f"{symbol}: Put expired worthless, keeping premium ${pos['option_premium_collected']}")
                 pos['current_strike'] = None
                 pos['expiration_date'] = None
     
@@ -429,7 +492,7 @@ class WheelStrategy:
             'notes': f'Put assigned, bought 100 shares at ${strike_price}'
         })
         
-        print(f"{symbol}: Put assigned! Bought 100 shares at ${strike_price}")
+        logger.info(f"{symbol}: Put assigned! Bought 100 shares at ${strike_price}")
     
     def _handle_covered_call(self, symbol, current_price):
         """Handle covered call logic.
@@ -442,9 +505,9 @@ class WheelStrategy:
         
         # If no current call position, sell a new call
         if pos['current_strike'] is None:
-            # Set strike price slightly above current price (105% of current)
-            strike_price = round(current_price * 1.05, 2)
-            premium = round(strike_price * 0.015, 2)  # 1.5% premium
+            # Set strike price based on config (default 105% of current)
+            strike_price = round(current_price * self.call_strike_pct, 2)
+            premium = round(strike_price * self.call_premium_pct, 2)  # Premium from config
             
             # Sell the call
             pos['current_strike'] = strike_price
@@ -466,7 +529,7 @@ class WheelStrategy:
                 'notes': f'Sold call with strike ${strike_price}'
             })
             
-            print(f"{symbol}: Sold call with strike ${strike_price}, premium ${premium}")
+            logger.info(f"{symbol}: Sold call with strike ${strike_price}, premium ${premium}")
         
         # Check for exercise at expiration
         elif self.current_week >= pos['expiration_date']:
@@ -477,7 +540,7 @@ class WheelStrategy:
                 self._exercise_call(symbol)
             else:
                 # Call expires worthless - reset for next cycle
-                print(f"{symbol}: Call expired worthless, keeping premium")
+                logger.info(f"{symbol}: Call expired worthless, keeping premium")
                 pos['current_strike'] = None
                 pos['expiration_date'] = None
     
@@ -519,8 +582,8 @@ class WheelStrategy:
             'notes': f'Call exercised, sold 100 shares at ${strike_price}. Capital gain: ${capital_gain:.2f}, Total premiums: ${total_premiums:.2f}'
         })
         
-        print(f"{symbol}: Call exercised! Sold 100 shares at ${strike_price}")
-        print(f"  Capital gain: ${capital_gain:.2f}, Total premiums: ${total_premiums:.2f}")
+        logger.info(f"{symbol}: Call exercised! Sold 100 shares at ${strike_price}")
+        logger.info(f"  Capital gain: ${capital_gain:.2f}, Total premiums: ${total_premiums:.2f}")
         
         # Reset premium tracking for next wheel cycle
         pos['option_premium_collected'] = 0.0
@@ -568,7 +631,7 @@ class WheelStrategy:
             filename (str): CSV filename
         """
         if not self.trades:
-            print("No trades to export.")
+            logger.info("No trades to export.")
             return
         
         fieldnames = ['week', 'strategy', 'symbol', 'action', 'quantity', 'price', 'strike', 'cash_flow', 'notes', 'timestamp']
@@ -578,21 +641,21 @@ class WheelStrategy:
             writer.writeheader()
             writer.writerows(self.trades)
         
-        print(f"Exported {len(self.trades)} trades to {filename}")
+        logger.info(f"Exported {len(self.trades)} trades to {filename}")
     
     def print_trades_summary(self):
         """Print a summary of all trades."""
         if not self.trades:
-            print("No trades recorded.")
+            logger.info("No trades recorded.")
             return
         
-        print(f"\n=== TRADES SUMMARY ({len(self.trades)} trades) ===")
+        logger.info(f"=== TRADES SUMMARY ({len(self.trades)} trades) ===")
         for trade in self.trades:
             cash_flow_str = f"${trade['cash_flow']:+.2f}" if trade['cash_flow'] != 0 else ""
             strike_str = f" @ ${trade['strike']}" if trade['strike'] else ""
-            print(f"{trade['week']}: {trade['action']} {trade['quantity']} {trade['symbol']}{strike_str} - {cash_flow_str}")
+            logger.info(f"{trade['week']}: {trade['action']} {trade['quantity']} {trade['symbol']}{strike_str} - {cash_flow_str}")
             if trade['notes']:
-                print(f"    Note: {trade['notes']}")
+                logger.info(f"    Note: {trade['notes']}")
         
         # Summary by action type
         actions = {}
@@ -602,10 +665,10 @@ class WheelStrategy:
             actions[action] = actions.get(action, 0) + 1
             total_cash_flow += trade['cash_flow']
         
-        print(f"\nACTION SUMMARY:")
+        logger.info("ACTION SUMMARY:")
         for action, count in actions.items():
-            print(f"  {action}: {count}")
-        print(f"Net Cash Flow: ${total_cash_flow:.2f}")
+            logger.info(f"  {action}: {count}")
+        logger.info(f"Net Cash Flow: ${total_cash_flow:.2f}")
 
 
 if __name__ == "__main__":
@@ -624,7 +687,7 @@ if __name__ == "__main__":
     strategy = WheelStrategy(
         capital=test_capital,
         symbols=test_symbols,
-        config={'test_mode': True}
+        config={'test_mode': True, 'simulation': {'weeks_to_simulate': 8}}
     )
     
     # Display initial mock prices for verification

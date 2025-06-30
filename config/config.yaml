@@ -94,6 +94,25 @@ backtesting:
   spread_bp: 2                   # Bid-ask spread in basis points (0.02%)
   slippage_bp: 1                 # Market impact slippage in basis points (0.01%)
   
+# =============================================================================
+# STRATEGY-SPECIFIC CONFIGURATION
+# =============================================================================
+
+# Options Wheel Strategy Parameters
+wheel_strategy:
+  put_strike_pct: 0.95           # Strike price as % of current price for cash-secured puts (95% = 5% OTM)
+  call_strike_pct: 1.05          # Strike price as % of current price for covered calls (105% = 5% OTM)
+  put_premium_pct: 0.02          # Premium as % of strike price for puts (2%)
+  call_premium_pct: 0.015        # Premium as % of strike price for calls (1.5%)
+  max_positions_per_symbol: 1    # Maximum concurrent positions per symbol
+  
+# Crypto Rotator Strategy Parameters  
+rotator_strategy:
+  lookback_weeks: 1              # Number of weeks to look back for performance
+  rotation_frequency: "weekly"   # How often to evaluate rotation ("daily", "weekly", "monthly")
+  min_holding_period: 7          # Minimum days before allowing rotation
+  performance_metric: "return"   # Metric to use for rotation ("return", "sharpe", "momentum")
+
 # Risk Management (future enhancement)
 risk_management:
   max_position_size: 0.5         # Maximum position size as % of total capital
