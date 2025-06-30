@@ -154,17 +154,25 @@ async def download_data_file(filename: str):
     """
     # Search for file in cache directories
     possible_paths = [
-        os.path.join(CACHE_DIR, filename),
-        os.path.join(CACHE_DIR, "crypto", filename),
-        os.path.join(CACHE_DIR, "etf", filename),
-        os.path.join(DATA_DIR, filename)
+        os.path.normpath(os.path.join(CACHE_DIR, filename)),
+        os.path.normpath(os.path.join(CACHE_DIR, "crypto", filename)),
+        os.path.normpath(os.path.join(CACHE_DIR, "etf", filename)),
+        os.path.normpath(os.path.join(DATA_DIR, filename))
     ]
     
     file_path = None
     for path in possible_paths:
-        if os.path.exists(path):
-            file_path = path
-            break
+        # Ensure the path is within the allowed directories
+        if path.startswith(CACHE_DIR) or path.startswith(DATA_DIR):
+            if os.path.exists(path):
+                file_path = path
+                break
+    
+    if not file_path:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Data file '{filename}' not found or access denied"
+        )
     
     if not file_path:
         raise HTTPException(
