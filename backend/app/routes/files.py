@@ -155,6 +155,12 @@ async def download_data_file(filename: str):
     """
     # Sanitize the filename to prevent path traversal attacks
     safe_filename = secure_filename(filename)
+    # Validate that the sanitized filename is not empty
+    if not safe_filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename provided"
+        )
     
     # Search for file in cache directories
     possible_paths = [
