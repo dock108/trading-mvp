@@ -10,6 +10,7 @@ from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 import yaml
+from werkzeug.utils import secure_filename
 
 router = APIRouter()
 
@@ -152,12 +153,21 @@ async def download_data_file(filename: str):
     Args:
         filename: Name of the file to download
     """
+    # Sanitize the filename to prevent path traversal attacks
+    safe_filename = secure_filename(filename)
+    # Validate that the sanitized filename is not empty
+    if not safe_filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename provided"
+        )
+    
     # Search for file in cache directories
     possible_paths = [
-        os.path.normpath(os.path.join(CACHE_DIR, filename)),
-        os.path.normpath(os.path.join(CACHE_DIR, "crypto", filename)),
-        os.path.normpath(os.path.join(CACHE_DIR, "etf", filename)),
-        os.path.normpath(os.path.join(DATA_DIR, filename))
+        os.path.normpath(os.path.join(CACHE_DIR, safe_filename)),
+        os.path.normpath(os.path.join(CACHE_DIR, "crypto", safe_filename)),
+        os.path.normpath(os.path.join(CACHE_DIR, "etf", safe_filename)),
+        os.path.normpath(os.path.join(DATA_DIR, safe_filename))
     ]
     
     file_path = None
@@ -174,21 +184,15 @@ async def download_data_file(filename: str):
     if not file_path:
         raise HTTPException(
             status_code=404, 
-            detail=f"Data file '{filename}' not found or access denied"
-        )
-    
-    if not file_path:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Data file '{filename}' not found"
+            detail=f"Data file '{safe_filename}' not found or access denied"
         )
     
     # Determine media type based on file extension
-    if filename.endswith('.csv'):
+    if safe_filename.endswith('.csv'):
         media_type = 'text/csv'
-    elif filename.endswith('.json'):
+    elif safe_filename.endswith('.json'):
         media_type = 'application/json'
-    elif filename.endswith(('.yaml', '.yml')):
+    elif safe_filename.endswith(('.yaml', '.yml')):
         media_type = 'application/x-yaml'
     else:
         media_type = 'application/octet-stream'
@@ -196,7 +200,7 @@ async def download_data_file(filename: str):
     return FileResponse(
         path=file_path,
         media_type=media_type,
-        filename=filename
+        filename=safe_filename
     )
 
 @router.get("/list/data")

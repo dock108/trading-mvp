@@ -38,3 +38,4 @@ python-multipart>=0.0.6  # For file upload support
 # pytest>=7.4.0          # Testing framework
 # pytest-mock>=3.11.1    # Mocking for tests
 # responses>=0.23.1       # Mock HTTP responses for testing
+werkzeug==3.1.3
