@@ -221,86 +221,130 @@ def run_rotator_strategy(config: Dict[str, Any], price_fetcher=None) -> Dict[str
 @router.post("/run", response_model=RunResponse)
 async def run_strategies(request: StrategyRunRequest):
     """
-    Execute selected trading strategies
+    Execute selected trading strategies using TradingOrchestrator
     
     Runs one or both strategies based on request and returns results.
     Always runs in simulation/backtest mode for safety.
     """
-    # Load current configuration
-    config = load_config()
-    
-    # Apply any configuration overrides
-    if request.config_overrides:
-        for key, value in request.config_overrides.items():
-            if isinstance(value, dict) and key in config and isinstance(config[key], dict):
-                config[key].update(value)
-            else:
-                config[key] = value
-    
-    # Force backtest mode for safety
-    config['backtest_mode'] = True
-    config['test_mode'] = True
-    
-    # Initialize price fetcher if needed
-    price_fetcher = None
-    data_mode = config.get('data_mode', 'mock')
-    if data_mode == 'live':
-        try:
-            from data.price_fetcher import PriceFetcher
-            price_fetcher = PriceFetcher()
-        except Exception as e:
-            print(f"Failed to initialize PriceFetcher: {e}")
-            print("Falling back to mock data mode")
-    
-    # Execute requested strategies
-    results = {}
-    total_trades = 0
-    combined_cash_flow = 0.0
-    start_time = datetime.now()
-    
-    # Run wheel strategy if requested
-    if "wheel" in request.strategies:
-        wheel_result = run_wheel_strategy(config, price_fetcher)
-        results["wheel"] = wheel_result
-        if not wheel_result.get('error'):
-            total_trades += len(wheel_result["trades"])
-            combined_cash_flow += sum(trade.get('cash_flow', 0) for trade in wheel_result["trades"])
-    
-    # Run rotator strategy if requested
-    if "rotator" in request.strategies:
-        try:
-            rotator_result = run_rotator_strategy(config, price_fetcher)
-            results["rotator"] = rotator_result
-            total_trades += len(rotator_result["trades"])
-            combined_cash_flow += sum(trade.get('cash_flow', 0) for trade in rotator_result["trades"])
-        except Exception as e:
-            results["rotator"] = {
+    try:
+        # Load current configuration
+        config = load_config()
+        
+        # Apply any configuration overrides
+        if request.config_overrides:
+            for key, value in request.config_overrides.items():
+                if isinstance(value, dict) and key in config and isinstance(config[key], dict):
+                    config[key].update(value)
+                else:
+                    config[key] = value
+        
+        # Force backtest mode for safety
+        config['backtest_mode'] = True
+        config['test_mode'] = True
+        
+        # Override enabled strategies based on request
+        config['strategies'] = {
+            'wheel': 'wheel' in request.strategies,
+            'rotator': 'rotator' in request.strategies
+        }
+        
+        # Initialize price fetcher if needed
+        price_fetcher = None
+        data_mode = config.get('data_mode', 'mock')
+        if data_mode == 'live':
+            try:
+                from data.price_fetcher import PriceFetcher
+                price_fetcher = PriceFetcher()
+            except Exception as e:
+                print(f"Failed to initialize PriceFetcher: {e}")
+                print("Falling back to mock data mode")
+        
+        # Import and initialize TradingOrchestrator
+        from core.orchestrator import TradingOrchestrator
+        from core.performance_metrics import calculate_strategy_metrics
+        
+        start_time = datetime.now()
+        
+        # Create orchestrator
+        orchestrator = TradingOrchestrator(config, price_fetcher)
+        
+        # Get simulation parameters
+        weeks_to_simulate = config.get('simulation', {}).get('weeks_to_simulate', 8)  # Default to 8 for API
+        
+        # Execute simulation
+        all_trades = orchestrator.execute_simulation(weeks=weeks_to_simulate)
+        
+        end_time = datetime.now()
+        
+        # Calculate results for each strategy
+        results = {}
+        total_trades = len(all_trades)
+        combined_cash_flow = sum(trade.get('cash_flow', 0) for trade in all_trades)
+        
+        for strategy_name in request.strategies:
+            if strategy_name in orchestrator.strategies:
+                strategy = orchestrator.strategies[strategy_name]
+                strategy_trades = [t for t in all_trades if t.get('strategy') == strategy_name]
+                
+                # Calculate performance metrics
+                initial_capital = getattr(strategy, 'initial_capital', 0)
+                final_capital = getattr(strategy, 'capital', initial_capital)
+                if hasattr(strategy, 'get_current_portfolio_value'):
+                    final_capital = strategy.get_current_portfolio_value()
+                
+                execution_time = (end_time - start_time).total_seconds()
+                
+                # Calculate return
+                total_return = ((final_capital - initial_capital) / initial_capital) * 100 if initial_capital > 0 else 0.0
+                
+                results[strategy_name] = {
+                    "trades": strategy_trades,
+                    "summary": {
+                        "total_trades": len(strategy_trades),
+                        "initial_capital": initial_capital,
+                        "final_capital": final_capital,
+                        "total_return": total_return,
+                        "execution_time": execution_time
+                    },
+                    "strategy_name": strategy_name,
+                    "execution_time": execution_time
+                }
+        
+        # Calculate combined summary
+        total_execution_time = (end_time - start_time).total_seconds()
+        combined_summary = {
+            "total_execution_time": total_execution_time,
+            "total_strategies_run": len(results),
+            "combined_cash_flow": combined_cash_flow,
+            "strategies_requested": request.strategies,
+            "data_mode": data_mode,
+            "weeks_simulated": weeks_to_simulate
+        }
+        
+        return RunResponse(
+            results=results,
+            status="success" if results else "no_strategies_run",
+            ran_at=end_time.isoformat(),
+            total_trades=total_trades,
+            combined_summary=combined_summary
+        )
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Strategy execution error: {error_details}")
+        
+        # Return error response
+        return RunResponse(
+            results={},
+            status="error",
+            ran_at=datetime.now().isoformat(),
+            total_trades=0,
+            combined_summary={
                 "error": str(e),
-                "trades": [],
-                "summary": {},
-                "strategy_name": "rotator",
-                "execution_time": 0.0
+                "strategies_requested": request.strategies
             }
-    
-    end_time = datetime.now()
-    
-    # Calculate combined summary
-    total_execution_time = (end_time - start_time).total_seconds()
-    combined_summary = {
-        "total_execution_time": total_execution_time,
-        "total_strategies_run": len([s for s in results.values() if not s.get('error')]),
-        "combined_cash_flow": combined_cash_flow,
-        "strategies_requested": request.strategies,
-        "data_mode": data_mode
-    }
-    
-    return RunResponse(
-        results=results,
-        status="success" if results else "no_strategies_run",
-        ran_at=end_time.isoformat(),
-        total_trades=total_trades,
-        combined_summary=combined_summary
-    )
+        )
 
 @router.get("/trades")
 async def get_latest_trades():
