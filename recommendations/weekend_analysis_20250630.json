@@ -1,0 +1,224 @@
+{
+  "analysis_timestamp": "2025-06-30T16:07:19.172172+00:00",
+  "strategies_analyzed": [
+    "weekly_momentum",
+    "mean_reversion",
+    "wheel_support",
+    "crypto_momentum"
+  ],
+  "total_recommendations": 3,
+  "market_data_symbols": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "BTC",
+    "ETH",
+    "SOL"
+  ],
+  "recommendations": [
+    {
+      "symbol": "SOL",
+      "action": "INCREASE",
+      "confidence": 0.5,
+      "reasoning": "RSI at 53.1 (neutral range); High volatility environment (32.9%) favors this strategy; Bullish trend (strength: 5.3%)",
+      "current_price": 566.7387282474739,
+      "target_price": 736.7603467217161,
+      "stop_loss": 453.39098259797913,
+      "take_profit": 736.7603467217161,
+      "position_size": 10.867399157456244,
+      "allocation_percentage": 6.158975977854421,
+      "risk_level": "LOW",
+      "expected_return": 0.2,
+      "time_horizon": "1-4 weeks",
+      "analysis_data": {
+        "symbol": "SOL",
+        "recommendation": "HOLD",
+        "confidence": 0.5,
+        "reasoning": "Bullish trend (strength: 5.3%); bullish momentum (rsi: 53.1); high volatility environment (32.9%)",
+        "trend_analysis": {
+          "trend": "BULLISH",
+          "strength": 5.279507065505773,
+          "signals": [],
+          "short_ma": 563.2741803703824,
+          "long_ma": 535.0273724400216,
+          "price_vs_short_ma": 0.6150730848009767
+        },
+        "momentum_analysis": {
+          "momentum": "BULLISH",
+          "rsi": 53.06951249373646,
+          "macd": 11.304066475131208,
+          "roc": 2.751596256239348,
+          "signals": [
+            "MACD_POSITIVE"
+          ]
+        },
+        "volatility_analysis": {
+          "volatility": 0.32880320295274384,
+          "regime": "HIGH",
+          "bollinger_position": "MIDDLE",
+          "upper_band": 596.8385639589897,
+          "lower_band": 529.7097967817751
+        },
+        "signals": [
+          "MACD_POSITIVE"
+        ],
+        "current_price": 566.7387282474739
+      },
+      "generated_at": "2025-06-30T12:07:19.160143"
+    },
+    {
+      "symbol": "SOL",
+      "action": "BUY",
+      "confidence": 0.8333333333333334,
+      "reasoning": "Bullish trend (strength: 5.3%); High volatility environment (32.9%) favors this strategy; 14-day momentum: 4.5% (above 2.0% threshold)",
+      "current_price": 566.7387282474739,
+      "target_price": 736.7603467217161,
+      "stop_loss": 453.39098259797913,
+      "take_profit": 736.7603467217161,
+      "position_size": 18.112331929093738,
+      "allocation_percentage": 10.264959963090702,
+      "risk_level": "LOW",
+      "expected_return": 0.2,
+      "time_horizon": "1-4 weeks",
+      "analysis_data": {
+        "symbol": "SOL",
+        "recommendation": "HOLD",
+        "confidence": 0.5,
+        "reasoning": "Bullish trend (strength: 5.3%); bullish momentum (rsi: 53.1); high volatility environment (32.9%)",
+        "trend_analysis": {
+          "trend": "BULLISH",
+          "strength": 5.279507065505773,
+          "signals": [],
+          "short_ma": 563.2741803703824,
+          "long_ma": 535.0273724400216,
+          "price_vs_short_ma": 0.6150730848009767
+        },
+        "momentum_analysis": {
+          "momentum": "BULLISH",
+          "rsi": 53.06951249373646,
+          "macd": 11.304066475131208,
+          "roc": 2.751596256239348,
+          "signals": [
+            "MACD_POSITIVE"
+          ]
+        },
+        "volatility_analysis": {
+          "volatility": 0.32880320295274384,
+          "regime": "HIGH",
+          "bollinger_position": "MIDDLE",
+          "upper_band": 596.8385639589897,
+          "lower_band": 529.7097967817751
+        },
+        "signals": [
+          "MACD_POSITIVE"
+        ],
+        "current_price": 566.7387282474739
+      },
+      "generated_at": "2025-06-30T12:07:19.166185"
+    },
+    {
+      "symbol": "IWM",
+      "action": "HOLD",
+      "confidence": 0.6666666666666666,
+      "reasoning": "Bearish trend (strength: 5.7%); medium volatility (28.3%); 14-day momentum: -3.5% (below -2.0% threshold)",
+      "current_price": 343.8693875092194,
+      "target_price": 429.83673438652426,
+      "stop_loss": 292.2889793828365,
+      "take_profit": 429.83673438652426,
+      "position_size": -25.217079747771837,
+      "allocation_percentage": -8.671381767637442,
+      "risk_level": "LOW",
+      "expected_return": 0.15,
+      "time_horizon": "1-4 weeks",
+      "analysis_data": {
+        "symbol": "IWM",
+        "recommendation": "SELL",
+        "confidence": 0.6000000000000001,
+        "reasoning": "Bearish trend (strength: 5.7%); bearish momentum (rsi: 38.9)",
+        "trend_analysis": {
+          "trend": "BEARISH",
+          "strength": 5.748675016196936,
+          "signals": [
+            "PRICE_BELOW_MA"
+          ],
+          "short_ma": 351.9963687358639,
+          "long_ma": 372.23149604330297,
+          "price_vs_short_ma": -2.3088253028947903
+        },
+        "momentum_analysis": {
+          "momentum": "BEARISH",
+          "rsi": 38.91939432131196,
+          "macd": -7.036778359532377,
+          "roc": 0.971599125865333,
+          "signals": [
+            "MACD_NEGATIVE"
+          ]
+        },
+        "volatility_analysis": {
+          "volatility": 0.28286182323625586,
+          "regime": "MEDIUM",
+          "bollinger_position": "MIDDLE",
+          "upper_band": 364.61826846643163,
+          "lower_band": 339.37446900529613
+        },
+        "signals": [
+          "PRICE_BELOW_MA",
+          "MACD_NEGATIVE"
+        ],
+        "current_price": 343.8693875092194
+      },
+      "generated_at": "2025-06-30T12:07:19.163405"
+    }
+  ],
+  "monday_action_plan": {
+    "immediate_actions": [
+      {
+        "symbol": "SOL",
+        "action": "BUY",
+        "details": "BUY 18.1123 shares of SOL at ~$566.74",
+        "reasoning": "Bullish trend (strength: 5.3%); High volatility environment (32.9%) favors this strategy; 14-day momentum: 4.5% (above 2.0% threshold)",
+        "confidence": "83%",
+        "allocation": "10.3%"
+      }
+    ],
+    "monitor_closely": [
+      {
+        "symbol": "SOL",
+        "action": "INCREASE",
+        "reasoning": "RSI at 53.1 (neutral range); High volatility environment (32.9%) favors this strategy; Bullish trend (strength: 5.3%)",
+        "confidence": "50%"
+      },
+      {
+        "symbol": "IWM",
+        "action": "HOLD",
+        "reasoning": "Bearish trend (strength: 5.7%); medium volatility (28.3%); 14-day momentum: -3.5% (below -2.0% threshold)",
+        "confidence": "67%"
+      }
+    ],
+    "research_needed": [],
+    "portfolio_changes": {
+      "SOL": {
+        "target_allocation": "10.3%",
+        "expected_return": "20.0%",
+        "stop_loss": "$453.39",
+        "take_profit": "$736.76"
+      },
+      "IWM": {
+        "target_allocation": "-8.7%",
+        "expected_return": "15.0%",
+        "stop_loss": "$292.29",
+        "take_profit": "$429.84"
+      }
+    },
+    "risk_alerts": []
+  },
+  "market_insights": {
+    "market_regime": "BULLISH",
+    "volatility_environment": "LOW",
+    "opportunities": [
+      "1 high-confidence trading opportunities identified",
+      "Crypto momentum rotation signals detected"
+    ],
+    "key_risks": []
+  }
+}

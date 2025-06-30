@@ -458,6 +458,189 @@ class PriceFetcher:
         
         logger.info(f"Successfully fetched prices for {len(results)}/{len(symbols)} symbols")
         return results
+
+    def get_market_data_for_analysis(self, symbols: List[str], lookback_days: int = 60) -> Dict[str, List[float]]:
+        """
+        Fetch market data optimized for technical analysis and recommendation engine.
+        
+        This method automatically determines asset types and fetches adequate historical data
+        for comprehensive technical analysis including moving averages, momentum indicators,
+        and volatility calculations.
+        
+        Args:
+            symbols: List of symbols to analyze (mixed crypto/equity symbols supported)
+            lookback_days: Days of historical data needed (default 60 for technical analysis)
+            
+        Returns:
+            Dictionary mapping symbols to price lists with sufficient data for analysis
+        """
+        logger.info(f"Fetching market data for {len(symbols)} symbols with {lookback_days} days lookback")
+        
+        # Categorize symbols by asset type
+        crypto_symbols = []
+        equity_symbols = []
+        
+        # Map of common crypto symbols to CoinGecko IDs
+        crypto_mapping = {
+            'BTC': 'bitcoin',
+            'ETH': 'ethereum', 
+            'SOL': 'solana',
+            'ADA': 'cardano',
+            'DOT': 'polkadot',
+            'MATIC': 'matic-network',
+            'AVAX': 'avalanche-2',
+            'LINK': 'chainlink'
+        }
+        
+        for symbol in symbols:
+            if symbol in crypto_mapping:
+                crypto_symbols.append(symbol)
+            else:
+                # Assume equity/ETF for other symbols
+                equity_symbols.append(symbol)
+        
+        market_data = {}
+        
+        # Fetch crypto data
+        if crypto_symbols:
+            logger.info(f"Fetching crypto data for: {crypto_symbols}")
+            for symbol in crypto_symbols:
+                try:
+                    coin_id = crypto_mapping[symbol]
+                    prices = self.get_prices(coin_id, 'crypto', lookback_days)
+                    market_data[symbol] = prices
+                    logger.debug(f"Fetched {len(prices)} prices for {symbol}")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch crypto data for {symbol}: {e}")
+                    market_data[symbol] = []
+        
+        # Fetch equity/ETF data
+        if equity_symbols:
+            logger.info(f"Fetching equity data for: {equity_symbols}")
+            for symbol in equity_symbols:
+                try:
+                    prices = self.get_prices(symbol, 'etf', lookback_days)
+                    market_data[symbol] = prices
+                    logger.debug(f"Fetched {len(prices)} prices for {symbol}")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch equity data for {symbol}: {e}")
+                    market_data[symbol] = []
+        
+        # Filter out symbols with insufficient data
+        min_required_days = min(50, lookback_days * 0.8)  # Need at least 80% of requested data
+        filtered_data = {}
+        
+        for symbol, prices in market_data.items():
+            if len(prices) >= min_required_days:
+                filtered_data[symbol] = prices
+                logger.debug(f"✅ {symbol}: {len(prices)} prices (sufficient for analysis)")
+            else:
+                logger.warning(f"❌ {symbol}: {len(prices)} prices (insufficient - need {min_required_days}+)")
+        
+        logger.info(f"Market data ready for analysis: {len(filtered_data)}/{len(symbols)} symbols")
+        return filtered_data
+        
+    def get_recommendation_data_batch(self, config: Dict) -> Dict[str, List[float]]:
+        """
+        Fetch market data specifically configured for the recommendation engine.
+        
+        This method reads configuration from the recommendation engine settings
+        and fetches appropriate market data for all configured symbols.
+        
+        Args:
+            config: Configuration dictionary containing recommendation engine settings
+            
+        Returns:
+            Dictionary mapping symbols to price lists ready for recommendation analysis
+        """
+        try:
+            # Extract configuration
+            rec_config = config.get('recommendation_engine', {})
+            data_sources = rec_config.get('data_sources', {})
+            symbols = data_sources.get('symbols', ['SPY', 'QQQ', 'IWM', 'BTC', 'ETH', 'SOL'])
+            lookback_days = rec_config.get('lookback_days', 60)
+            
+            logger.info(f"Fetching recommendation data for {len(symbols)} configured symbols")
+            logger.debug(f"Symbols: {symbols}, Lookback: {lookback_days} days")
+            
+            # Use the optimized market data fetcher
+            return self.get_market_data_for_analysis(symbols, lookback_days)
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch recommendation data batch: {e}")
+            return {}
+            
+    def get_weekend_analysis_data(self, config: Dict) -> Dict[str, List[float]]:
+        """
+        Fetch market data for weekend analysis runs.
+        
+        This method is specifically designed for weekend recommendation generation,
+        ensuring we have the most up-to-date data for Monday execution planning.
+        
+        Args:
+            config: Configuration dictionary
+            
+        Returns:
+            Dictionary with fresh market data for weekend analysis
+        """
+        logger.info("Fetching fresh market data for weekend analysis")
+        
+        try:
+            # Get fresh data with weekend-specific settings
+            data = self.get_recommendation_data_batch(config)
+            
+            # Add metadata about data freshness
+            current_time = datetime.now()
+            for symbol in data:
+                if data[symbol]:  # Only for symbols with data
+                    logger.debug(f"Weekend analysis data for {symbol}: {len(data[symbol])} prices")
+            
+            logger.info(f"Weekend analysis data ready: {len(data)} symbols at {current_time.strftime('%Y-%m-%d %H:%M')}")
+            return data
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch weekend analysis data: {e}")
+            return {}
+            
+    def validate_data_for_technical_analysis(self, market_data: Dict[str, List[float]], 
+                                           min_periods: Dict[str, int] = None) -> Dict[str, bool]:
+        """
+        Validate that market data has sufficient history for technical analysis.
+        
+        Args:
+            market_data: Dictionary mapping symbols to price lists
+            min_periods: Optional dictionary specifying minimum periods needed per indicator
+            
+        Returns:
+            Dictionary mapping symbols to validation status (True = sufficient data)
+        """
+        if min_periods is None:
+            # Default minimum periods for common technical indicators
+            min_periods = {
+                'sma_20': 20,
+                'sma_50': 50, 
+                'rsi_14': 28,  # Need 14 + warmup
+                'macd': 35,    # Need 26 + 9 for signal
+                'bollinger': 25,  # Need 20 + warmup
+                'comprehensive': 50  # Safe minimum for most analysis
+            }
+        
+        validation_results = {}
+        required_periods = min_periods.get('comprehensive', 50)
+        
+        for symbol, prices in market_data.items():
+            if not prices or len(prices) < required_periods:
+                validation_results[symbol] = False
+                logger.warning(f"Insufficient data for {symbol}: {len(prices) if prices else 0} < {required_periods} required")
+            else:
+                validation_results[symbol] = True
+                logger.debug(f"Data validation passed for {symbol}: {len(prices)} >= {required_periods} required")
+        
+        passed = sum(validation_results.values())
+        total = len(validation_results)
+        logger.info(f"Technical analysis data validation: {passed}/{total} symbols passed")
+        
+        return validation_results
     
     def health_check(self) -> Dict[str, bool]:
         """

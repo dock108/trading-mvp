@@ -118,3 +118,194 @@ risk_management:
   max_position_size: 0.5         # Maximum position size as % of total capital
   enable_stop_losses: false      # Enable stop-loss orders
   max_daily_trades: 10           # Maximum trades per day
+
+# =============================================================================
+# RECOMMENDATION ENGINE CONFIGURATION
+# =============================================================================
+
+# Recommendation Engine Settings
+recommendation_engine:
+  # Global Engine Settings
+  confidence_threshold: 0.5        # Minimum confidence score for recommendations (0.0-1.0)
+  max_position_size: 0.15           # Maximum position size per recommendation (15% of portfolio)
+  lookback_days: 60                 # Days of historical data for technical analysis
+  
+  # Data Sources for Analysis
+  data_sources:
+    symbols: ["SPY", "QQQ", "IWM", "BTC", "ETH", "SOL"]  # Assets to analyze
+    update_frequency: "weekend"      # When to generate new recommendations
+    weekend_analysis_time: "20:00"  # Sunday evening analysis time (EST)
+    
+  # Strategy Definitions
+  strategies:
+    # Weekly Momentum Strategy
+    weekly_momentum:
+      name: "Weekly Momentum Strategy"
+      description: "Short-term momentum based on price action and technical indicators"
+      risk_level: "MEDIUM"
+      rules:
+        - type: "momentum"
+          lookback_days: 7
+          threshold: 0.03            # 3% momentum threshold
+          weight: 0.3
+        - type: "mean_reversion"
+          indicator: "RSI"
+          buy_below: 30              # RSI oversold level
+          sell_above: 70             # RSI overbought level
+          weight: 0.25
+        - type: "trend_following"
+          short_ma: 20               # Short-term moving average
+          long_ma: 50                # Long-term moving average
+          weight: 0.25
+        - type: "volatility"
+          action: "avoid_high_vol"   # or "prefer_high_vol" for vol strategies
+          weight: 0.2
+      
+    # Mean Reversion Strategy
+    mean_reversion:
+      name: "Mean Reversion Strategy"
+      description: "Buy oversold conditions, sell overbought conditions"
+      risk_level: "LOW"
+      rules:
+        - type: "mean_reversion"
+          indicator: "RSI"
+          buy_below: 25              # More aggressive oversold level
+          sell_above: 75             # More aggressive overbought level
+          weight: 0.4
+        - type: "volatility"
+          action: "prefer_high_vol"  # High vol good for mean reversion
+          weight: 0.3
+        - type: "trend_following"
+          short_ma: 10
+          long_ma: 30
+          weight: 0.3
+    
+    # Options Wheel Support Strategy
+    wheel_support:
+      name: "Options Wheel Support Strategy"
+      description: "Technical analysis to support options wheel decisions"
+      risk_level: "LOW"
+      target_assets: ["SPY", "QQQ", "IWM"]  # ETFs suitable for wheel
+      rules:
+        - type: "trend_following"
+          short_ma: 20
+          long_ma: 50
+          weight: 0.4
+        - type: "volatility"
+          action: "prefer_high_vol"  # High vol = better option premiums
+          weight: 0.35
+        - type: "momentum"
+          lookback_days: 14
+          threshold: 0.02
+          weight: 0.25
+    
+    # Crypto Momentum Strategy
+    crypto_momentum:
+      name: "Crypto Momentum Strategy"
+      description: "Higher-risk momentum strategy for cryptocurrency assets"
+      risk_level: "HIGH"
+      target_assets: ["BTC", "ETH", "SOL"]  # Crypto assets only
+      rules:
+        - type: "momentum"
+          lookback_days: 14
+          threshold: 0.05            # 5% threshold for crypto (more volatile)
+          weight: 0.4
+        - type: "trend_following"
+          short_ma: 12
+          long_ma: 26
+          weight: 0.35
+        - type: "mean_reversion"
+          indicator: "RSI"
+          buy_below: 35              # Less aggressive for crypto
+          sell_above: 65
+          weight: 0.25
+          
+  # Monday Execution Configuration
+  monday_execution:
+    market_open_time: "09:30"       # EST market open time
+    pre_market_analysis: true       # Analyze pre-market conditions
+    immediate_execution_threshold: 0.7  # Execute immediately if confidence >= 70%
+    monitor_threshold: 0.5          # Monitor closely if confidence >= 50%
+    
+    # Pre-market checklist
+    pre_market_checks:
+      - "overnight_news"            # Check for major news events
+      - "earnings_announcements"    # Verify no earnings conflicts
+      - "gap_analysis"              # Analyze pre-market gaps
+      - "liquidity_check"           # Confirm adequate liquidity
+      
+  # Position Sizing Rules
+  position_sizing:
+    base_allocation: 0.15           # Base allocation per recommendation (15%)
+    confidence_scaling: true        # Scale position size with confidence
+    volatility_adjustment: true     # Reduce size for high volatility assets
+    max_crypto_allocation: 0.30     # Maximum total crypto allocation (30%)
+    max_equity_allocation: 0.70     # Maximum total equity allocation (70%)
+    
+    # Risk Adjustments
+    risk_adjustments:
+      high_vol_multiplier: 0.7      # Reduce position size by 30% for high vol
+      low_confidence_multiplier: 0.5 # Reduce position size by 50% for low confidence
+      crypto_multiplier: 0.8        # Reduce crypto positions by 20% (higher risk)
+      
+  # Risk Management
+  risk_management:
+    max_correlation_exposure: 0.5   # Maximum exposure to correlated assets
+    sector_diversification: true    # Enforce sector limits
+    volatility_limits:
+      max_portfolio_vol: 0.25       # Maximum portfolio volatility (25%)
+      individual_asset_vol: 0.40    # Maximum individual asset volatility (40%)
+      
+    # Stop Loss Configuration
+    stop_losses:
+      enable: true                  # Enable stop loss recommendations
+      equity_stop: 0.10             # 10% stop loss for equities
+      crypto_stop: 0.15             # 15% stop loss for crypto (more volatile)
+      trailing_stop: true           # Use trailing stops
+      
+    # Position Limits
+    position_limits:
+      max_single_position: 0.20     # Maximum 20% in any single asset
+      max_strategy_allocation: 0.60 # Maximum 60% using same strategy
+      min_cash_reserve: 0.05        # Keep 5% cash for opportunities
+
+# =============================================================================
+# TECHNICAL ANALYSIS CONFIGURATION
+# =============================================================================
+
+# Technical Indicators Configuration
+technical_analysis:
+  # Moving Averages
+  moving_averages:
+    short_period: 20                # Short-term MA period
+    long_period: 50                 # Long-term MA period
+    ema_periods: [12, 26, 50]       # EMA periods for analysis
+    
+  # Momentum Indicators
+  momentum:
+    rsi_period: 14                  # RSI calculation period
+    macd_fast: 12                   # MACD fast EMA
+    macd_slow: 26                   # MACD slow EMA
+    macd_signal: 9                  # MACD signal line EMA
+    roc_period: 10                  # Rate of Change period
+    
+  # Volatility Indicators
+  volatility:
+    bollinger_period: 20            # Bollinger Bands period
+    bollinger_std: 2.0              # Bollinger Bands standard deviations
+    atr_period: 14                  # Average True Range period
+    volatility_period: 20           # Volatility calculation period
+    
+  # Volume Indicators (future enhancement)
+  volume:
+    volume_ma_period: 20            # Volume moving average
+    vwap_period: 20                 # Volume Weighted Average Price
+    
+  # Threshold Settings
+  thresholds:
+    overbought_rsi: 70              # RSI overbought threshold
+    oversold_rsi: 30                # RSI oversold threshold
+    high_volatility: 0.30           # High volatility threshold (30%)
+    low_volatility: 0.15            # Low volatility threshold (15%)
+    strong_momentum: 0.05           # Strong momentum threshold (5%)
+    weak_momentum: 0.01             # Weak momentum threshold (1%)
