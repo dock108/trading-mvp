@@ -119,9 +119,13 @@ async def upload_data_files(files: List[UploadFile] = File(...)):
             })
             
         except Exception as e:
+            # Log the exception details on the server
+            import logging
+            logging.error(f"Error processing file {file.filename}: {e}", exc_info=True)
+            # Append a generic error message to the response
             uploaded_files.append({
                 "filename": file.filename,
-                "error": str(e)
+                "error": "An error occurred while processing this file."
             })
     
     return {
